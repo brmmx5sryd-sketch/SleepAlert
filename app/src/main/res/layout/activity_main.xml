@@ -8,11 +8,28 @@
     tools:context=".MainActivity">
 
     <!-- 宛先 -->
+    <!-- 宛先1 -->
     <EditText
-        android:id="@+id/editTextTo"
+        android:id="@+id/editTextTo1"
         android:layout_width="match_parent"
         android:layout_height="48dp"
-        android:hint="宛先メールアドレス"
+        android:hint="宛先メール1"
+        android:inputType="textEmailAddress" />
+
+    <!-- 宛先2 -->
+    <EditText
+        android:id="@+id/editTextTo2"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:hint="宛先メール2"
+        android:inputType="textEmailAddress" />
+
+    <!-- 宛先3 -->
+    <EditText
+        android:id="@+id/editTextTo3"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:hint="宛先メール3"
         android:inputType="textEmailAddress" />
 
     <!-- 件名 -->

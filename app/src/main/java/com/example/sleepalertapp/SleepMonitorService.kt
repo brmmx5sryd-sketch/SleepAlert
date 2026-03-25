@@ -8,7 +8,8 @@ import android.util.Log
 
 class SleepMonitorService : Service() {
 
-    private lateinit var to: String
+    private var toList: List<String> = emptyList()
+
     private lateinit var subject: String
     private lateinit var body: String
     private var isReceiverRegistered = false
@@ -64,7 +65,12 @@ class SleepMonitorService : Service() {
         }
 
         loadSettings()
-        to = intent?.getStringExtra("to") ?: to
+        toList = listOf(
+            intent?.getStringExtra("to1") ?: "",
+            intent?.getStringExtra("to2") ?: "",
+            intent?.getStringExtra("to3") ?: ""
+        ).filter { it.isNotEmpty() }
+
         subject = intent?.getStringExtra("subject") ?: "緊急連絡"
         body = intent?.getStringExtra("body") ?: "自動送信メッセージ"
 
@@ -93,11 +99,10 @@ class SleepMonitorService : Service() {
 
     @SuppressLint("ScheduleExactAlarm")
     private fun setSleepAlarm() {
-        Log.d("Alarm", "送信予定セット")
-
+        Log.d("Alarm", "送信予定セット toList=$toList")
         // ① 警告用
         val warningIntent = Intent(this, WarningReceiver::class.java).apply {
-            putExtra("to", to)
+            putStringArrayListExtra("toList", ArrayList(toList))
             putExtra("subject", subject)
             putExtra("body", body)
         }
@@ -109,7 +114,7 @@ class SleepMonitorService : Service() {
 
         // ② 送信用
         val sendIntent = Intent(this, SleepAlarmReceiver::class.java).apply {
-            putExtra("to", to)
+            putStringArrayListExtra("toList", ArrayList(toList))
             putExtra("subject", subject)
             putExtra("body", body)
         }
@@ -167,13 +172,20 @@ class SleepMonitorService : Service() {
     private fun saveSettings() {
         val prefs = getSharedPreferences("monitor", MODE_PRIVATE)
         prefs.edit()
-            .putString("to", to)
+            .putString("to1", toList.getOrNull(0))
+            .putString("to2", toList.getOrNull(1))
+            .putString("to3", toList.getOrNull(2))
             .apply()
     }
 
     private fun loadSettings() {
         val prefs = getSharedPreferences("monitor", MODE_PRIVATE)
-        to = prefs.getString("to", "") ?: ""
+
+        toList = listOf(
+            prefs.getString("to1", "") ?: "",
+            prefs.getString("to2", "") ?: "",
+            prefs.getString("to3", "") ?: ""
+        ).filter { it.isNotEmpty() }
     }
 
     override fun onDestroy() {

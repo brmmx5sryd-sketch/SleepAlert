@@ -19,16 +19,15 @@ class CheckWorker(context: Context, params: WorkerParameters) : Worker(context, 
         val limit = 24 * 60 * 60 * 1000L
 
         if (diff > limit) {
-            val to = prefs.getString("to", "") ?: ""
+            val toList = prefs.getStringSet("toList", emptySet())?.toList() ?: emptyList()
 
-            EmailSender.send(
+            EmailSender.sendMultiple(
                 applicationContext,
-                to,
+                toList,
                 "異常検知",
                 "24時間操作がありません"
             )
         }
-
         return Result.success()
     }
 }

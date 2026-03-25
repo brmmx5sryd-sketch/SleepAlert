@@ -7,11 +7,12 @@ import android.util.Log
 
 class SleepAlarmReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        val to = intent.getStringExtra("to") ?: return
+        val toList = intent.getStringArrayListExtra("toList") ?: return
         val subject = intent.getStringExtra("subject") ?: "緊急連絡"
         val body = intent.getStringExtra("body") ?: "自動送信メッセージ"
 
         Log.d("SleepAlertReceiver", "メール送信トリガー(Alarm)")
-        EmailSender.send(context, to, subject, body)
+        EmailSender.sendMultiple(context, toList, subject, body)
+
     }
 }

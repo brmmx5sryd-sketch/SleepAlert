@@ -43,4 +43,10 @@ object EmailSender {
             }
         }
     }
+
+    fun sendMultiple(context: Context, toList: List<String>, subject: String, body: String) {
+        toList.forEach { to ->
+            send(context, to, subject, body)
+        }
+    }
 }
