@@ -18,7 +18,13 @@ class MainActivity : AppCompatActivity() {
     private lateinit var buttonStart: Button
     private lateinit var buttonStop: Button
     private lateinit var buttonTestSend: Button
+    private lateinit var buttonSelect1: Button
+    private lateinit var buttonSelect2: Button
+    private lateinit var buttonSelect3: Button
 
+    private val REQUEST_CONTACT_1 = 101
+    private val REQUEST_CONTACT_2 = 102
+    private val REQUEST_CONTACT_3 = 103
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -40,6 +46,9 @@ class MainActivity : AppCompatActivity() {
         buttonStart = findViewById(R.id.buttonStart)
         buttonStop = findViewById(R.id.buttonStop)
         buttonTestSend = findViewById(R.id.buttonTestSend)
+        buttonSelect1 = findViewById(R.id.buttonSelect1)
+        buttonSelect2 = findViewById(R.id.buttonSelect2)
+        buttonSelect3 = findViewById(R.id.buttonSelect3)
 
         editTextTo1.setText("ana05224@gmail.com")
         editTextTo2.setText("ana05224@nifty.com")
@@ -101,6 +110,52 @@ class MainActivity : AppCompatActivity() {
             EmailSender.sendMultiple(applicationContext, toList, subject, body)
 
             Toast.makeText(this, "テストメール送信中（複数）", Toast.LENGTH_SHORT).show()
+        }
+
+        buttonSelect1.setOnClickListener {
+            openContactPicker(REQUEST_CONTACT_1)
+        }
+
+        buttonSelect2.setOnClickListener {
+            openContactPicker(REQUEST_CONTACT_2)
+        }
+
+        buttonSelect3.setOnClickListener {
+            openContactPicker(REQUEST_CONTACT_3)
+        }
+    }
+
+    private fun openContactPicker(requestCode: Int) {
+        val intent = Intent(Intent.ACTION_PICK)
+        intent.type = android.provider.ContactsContract.CommonDataKinds.Email.CONTENT_TYPE
+        startActivityForResult(intent, requestCode)
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+
+        if (resultCode == RESULT_OK && data != null) {
+            val uri = data.data ?: return
+
+            val cursor = contentResolver.query(
+                uri,
+                arrayOf(android.provider.ContactsContract.CommonDataKinds.Email.ADDRESS),
+                null,
+                null,
+                null
+            )
+
+            cursor?.use {
+                if (it.moveToFirst()) {
+                    val email = it.getString(0)
+
+                    when (requestCode) {
+                        REQUEST_CONTACT_1 -> editTextTo1.setText(email)
+                        REQUEST_CONTACT_2 -> editTextTo2.setText(email)
+                        REQUEST_CONTACT_3 -> editTextTo3.setText(email)
+                    }
+                }
+            }
         }
     }
 }
