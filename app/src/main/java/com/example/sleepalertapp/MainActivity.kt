@@ -7,6 +7,11 @@ import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
 import androidx.work.*
 import java.util.concurrent.TimeUnit
+import android.provider.ContactsContract
+import android.database.Cursor
+import android.Manifest
+import androidx.core.app.ActivityCompat
+import androidx.appcompat.app.AlertDialog
 
 class MainActivity : AppCompatActivity() {
 
@@ -19,6 +24,9 @@ class MainActivity : AppCompatActivity() {
     private lateinit var buttonStop: Button
     private lateinit var buttonTestSend: Button
 
+    private val REQUEST_CONTACT_1 = 1
+    private val REQUEST_CONTACT_2 = 2
+    private val REQUEST_CONTACT_3 = 3
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -102,5 +110,103 @@ class MainActivity : AppCompatActivity() {
 
             Toast.makeText(this, "テストメール送信中（複数）", Toast.LENGTH_SHORT).show()
         }
+
+        editTextTo1.setOnClickListener {
+            openContactPicker(REQUEST_CONTACT_1)
+        }
+
+        editTextTo2.setOnClickListener {
+            openContactPicker(REQUEST_CONTACT_2)
+        }
+
+        editTextTo3.setOnClickListener {
+            openContactPicker(REQUEST_CONTACT_3)
+        }
+
     }
+
+    private fun openContactPicker(requestCode: Int) {
+
+        if (ActivityCompat.checkSelfPermission(
+                this,
+                Manifest.permission.READ_CONTACTS
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            ActivityCompat.requestPermissions(
+                this,
+                arrayOf(Manifest.permission.READ_CONTACTS),
+                100
+            )
+            return
+        }
+
+        val intent = Intent(Intent.ACTION_PICK, ContactsContract.Contacts.CONTENT_URI)
+        startActivityForResult(intent, requestCode)
+    }
+
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+
+        if (resultCode != RESULT_OK || data == null) return
+
+        val contactUri = data.data ?: return
+
+        val cursor = contentResolver.query(contactUri, null, null, null, null)
+
+        cursor?.use {
+            if (it.moveToFirst()) {
+
+                val id = it.getString(
+                    it.getColumnIndexOrThrow(ContactsContract.Contacts._ID)
+                )
+
+                val emailCursor = contentResolver.query(
+                    ContactsContract.CommonDataKinds.Email.CONTENT_URI,
+                    null,
+                    "${ContactsContract.CommonDataKinds.Email.CONTACT_ID} = ?",
+                    arrayOf(id),
+                    null
+                )
+
+                val emails = mutableListOf<String>()
+
+                emailCursor?.use { ec ->
+                    while (ec.moveToNext()) {
+                        val email = ec.getString(
+                            ec.getColumnIndexOrThrow(
+                                ContactsContract.CommonDataKinds.Email.DATA
+                            )
+                        )
+                        emails.add(email)
+                    }
+                }
+
+                if (emails.size == 1) {
+                    setEmail(requestCode, emails[0])
+
+                } else if (emails.isNotEmpty()) {
+
+                    AlertDialog.Builder(this)
+                        .setTitle("メールを選択")
+                        .setItems(emails.toTypedArray()) { _, which ->
+                            setEmail(requestCode, emails[which])
+                        }
+                        .show()
+
+                } else {
+                    Toast.makeText(this, "メールなし", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
+    private fun setEmail(requestCode: Int, email: String) {
+        when (requestCode) {
+            REQUEST_CONTACT_1 -> editTextTo1.setText(email)
+            REQUEST_CONTACT_2 -> editTextTo2.setText(email)
+            REQUEST_CONTACT_3 -> editTextTo3.setText(email)
+        }
+    }
+
 }
