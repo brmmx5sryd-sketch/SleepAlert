@@ -7,30 +7,69 @@
     android:padding="16dp"
     tools:context=".MainActivity">
 
-    <!-- 宛先 -->
     <!-- 宛先1 -->
-    <EditText
-        android:id="@+id/editTextTo1"
+    <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="48dp"
-        android:hint="宛先メール1"
-        android:inputType="textEmailAddress" />
+        android:layout_height="wrap_content"
+        android:orientation="horizontal">
+
+        <Button
+            android:id="@+id/buttonSelect1"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="選択" />
+
+        <EditText
+            android:id="@+id/editTextTo1"
+            android:layout_width="0dp"
+            android:layout_height="48dp"
+            android:layout_weight="1"
+            android:hint="宛先メール1"
+            android:inputType="textEmailAddress" />
+    </LinearLayout>
 
     <!-- 宛先2 -->
-    <EditText
-        android:id="@+id/editTextTo2"
+    <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="48dp"
-        android:hint="宛先メール2"
-        android:inputType="textEmailAddress" />
+        android:layout_height="wrap_content"
+        android:orientation="horizontal">
+
+        <Button
+            android:id="@+id/buttonSelect2"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="選択" />
+
+        <EditText
+            android:id="@+id/editTextTo2"
+            android:layout_width="0dp"
+            android:layout_height="48dp"
+            android:layout_weight="1"
+            android:hint="宛先メール2"
+            android:inputType="textEmailAddress" />
+    </LinearLayout>
 
     <!-- 宛先3 -->
-    <EditText
-        android:id="@+id/editTextTo3"
+    <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="48dp"
-        android:hint="宛先メール3"
-        android:inputType="textEmailAddress" />
+        android:layout_height="wrap_content"
+        android:orientation="horizontal">
+
+        <Button
+            android:id="@+id/buttonSelect3"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="選択" />
+
+        <EditText
+            android:id="@+id/editTextTo3"
+            android:layout_width="0dp"
+            android:layout_height="48dp"
+            android:layout_weight="1"
+            android:hint="宛先メール3"
+            android:inputType="textEmailAddress" />
+    </LinearLayout>
+
 
     <!-- 件名 -->
     <EditText
@@ -70,5 +109,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="テスト送信" />
+
+    <!-- (Removed standalone contact select buttons, now included per row) -->
 
 </LinearLayout>
