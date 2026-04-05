@@ -123,6 +123,28 @@
             android:layout_marginTop="8dp"
             android:textSize="12sp" />
 
+        <!-- [追加] 送信間隔 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="送信間隔（秒）："
+                android:textSize="12sp"
+                android:layout_gravity="center_vertical" />
+
+            <EditText
+                android:id="@+id/editTextSendInterval"
+                android:layout_width="60dp"
+                android:layout_height="40dp"
+                android:textSize="12sp"
+                android:inputType="number"
+                android:hint="60" />
+        </LinearLayout>
+
         <!-- Worker間隔 -->
         <LinearLayout
             android:layout_width="match_parent"
@@ -199,7 +221,7 @@
             android:layout_height="wrap_content"
             android:minHeight="48dp"
             android:textSize="12sp"
-            android:text="Worker設定を保存" />
+            android:text="設定を保存" />
 
     </LinearLayout>
 </ScrollView>

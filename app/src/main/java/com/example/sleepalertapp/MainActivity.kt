@@ -29,6 +29,7 @@ class MainActivity : AppCompatActivity() {
 
     // [追加] Worker設定UI
     private lateinit var editTextWorkerInterval: EditText
+    private lateinit var editTextSendInterval: EditText
     private lateinit var editTextThreshold: EditText
     private lateinit var switchTestMode: Switch
     private lateinit var buttonSaveWorkerSettings: Button
@@ -66,18 +67,18 @@ class MainActivity : AppCompatActivity() {
         editTextThreshold = findViewById(R.id.editTextThreshold)
         switchTestMode = findViewById(R.id.switchTestMode)
         buttonSaveWorkerSettings = findViewById(R.id.buttonSaveWorkerSettings)
+        editTextSendInterval = findViewById(R.id.editTextSendInterval)
         // [追加] ここまで
 
-        editTextTo1.setText("ana05224@gmail.com")
-        editTextTo2.setText("ana05224@nifty.com")
-        editTextTo3.setText("sugar_lay_lenard@yahoo.co.jp")
-        editTextSubject.setText("test")
-        editTextBody.setText("This is test mail")
-
-        // [追加] 保存済みWorker設定を復元
-        val prefs = getSharedPreferences("monitor", MODE_PRIVATE)
+         val prefs = getSharedPreferences("monitor", MODE_PRIVATE)
+        editTextTo1.setText(prefs.getString("to1", ""))
+        editTextTo2.setText(prefs.getString("to2", ""))
+        editTextTo3.setText(prefs.getString("to3", ""))
+        editTextSubject.setText(prefs.getString("subject", ""))
+        editTextBody.setText(prefs.getString("body", ""))
         editTextWorkerInterval.setText(prefs.getLong("worker_interval", 15L).toString())
         editTextThreshold.setText(prefs.getLong("threshold_value", 24L).toString())
+        editTextSendInterval.setText(prefs.getLong("send_interval_sec", 60L).toString())
         switchTestMode.isChecked = prefs.getBoolean("test_mode", false)
         // [追加] ここまで
 
@@ -131,10 +132,11 @@ class MainActivity : AppCompatActivity() {
         buttonSelect2.setOnClickListener { openContactPicker(REQUEST_CONTACT_2) }
         buttonSelect3.setOnClickListener { openContactPicker(REQUEST_CONTACT_3) }
 
-        // [追加] Worker設定の保存ボタン
+
         buttonSaveWorkerSettings.setOnClickListener {
             val interval = editTextWorkerInterval.text.toString().toLongOrNull()
             val threshold = editTextThreshold.text.toString().toLongOrNull()
+            val sendInterval = editTextSendInterval.text.toString().toLongOrNull()
             val testMode = switchTestMode.isChecked
 
             if (interval == null || interval < 15) {
@@ -145,21 +147,37 @@ class MainActivity : AppCompatActivity() {
                 Toast.makeText(this, "閾値は1以上で入力してください", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
+            if (sendInterval == null || sendInterval < 10) {
+                Toast.makeText(this, "送信間隔は10秒以上で入力してください", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
 
+            // [変更] 全パラメータを保存
             prefs.edit()
+                .putString("to1", editTextTo1.text.toString())
+                .putString("to2", editTextTo2.text.toString())
+                .putString("to3", editTextTo3.text.toString())
+                .putStringSet("toList", listOf(
+                    editTextTo1.text.toString(),
+                    editTextTo2.text.toString(),
+                    editTextTo3.text.toString()
+                ).filter { it.isNotBlank() }.toSet())
+                .putString("subject", editTextSubject.text.toString())
+                .putString("body", editTextBody.text.toString())
                 .putLong("worker_interval", interval)
                 .putLong("threshold_value", threshold)
+                .putLong("send_interval_sec", sendInterval)
                 .putBoolean("test_mode", testMode)
                 .apply()
+            // [変更] ここまで
 
             val unit = if (testMode) "分" else "時間"
             Toast.makeText(
                 this,
-                "保存しました（間隔: ${interval}分 / 閾値: ${threshold}${unit}）",
+                "設定を保存しました",
                 Toast.LENGTH_SHORT
             ).show()
         }
-        // [追加] ここまで
     }
 
     // openContactPicker・showEmailDialog・setEmail は変更なし

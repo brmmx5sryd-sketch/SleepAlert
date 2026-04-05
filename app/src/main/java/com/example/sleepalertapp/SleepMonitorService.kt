@@ -6,27 +6,29 @@ import android.app.*
 import android.content.*
 import android.os.*
 import android.util.Log
-import android.provider.Settings // [追加] 設定画面遷移用
+import android.provider.Settings
 
 class SleepMonitorService : Service() {
 
     private var toList: List<String> = emptyList()
-
     private lateinit var subject: String
     private lateinit var body: String
     private var isReceiverRegistered = false
+
+    // [追加] 送信間隔（秒）SharedPrefsから読む
+    private var sendIntervalSec: Long = 60L
 
     private val screenReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             when (intent?.action) {
                 Intent.ACTION_SCREEN_OFF -> {
-                    Log.d("SleepAlertService", "画面OFF、5分後にアラーム設定")
+                    Log.d("SleepAlertService", "画面OFF、アラーム設定")
                     setSleepAlarm()
                 }
                 Intent.ACTION_SCREEN_ON -> {
                     Log.d("SleepAlertService", "画面ON、アラームキャンセル")
                     updateLastActiveTime()
-                    cancelSleepAlarm()
+                    cancelSleepAlarm() // [変更] 再送信アラームも含めてキャンセル
                 }
             }
         }
@@ -42,21 +44,15 @@ class SleepMonitorService : Service() {
             }
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                registerReceiver(
-                    screenReceiver,
-                    filter,
-                    Context.RECEIVER_NOT_EXPORTED
-                )
+                registerReceiver(screenReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
             } else {
                 registerReceiver(screenReceiver, filter)
             }
-
             isReceiverRegistered = true
         }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-
         Log.d("Service", "監視中")
 
         if (intent?.action == "STOP_MONITORING") {
@@ -64,25 +60,21 @@ class SleepMonitorService : Service() {
             return START_NOT_STICKY
         }
 
-        // まずSharedPrefsから復元
+        if (intent?.action == "SET_RESEND_ALARM") {
+            setResendAlarm()
+            return START_STICKY
+        }
         loadSettings()
 
-        // [変更] Extrasがある場合のみ上書き（BootReceiver経由では上書きしない）
         val to1 = intent?.getStringExtra("to1")
         val to2 = intent?.getStringExtra("to2")
         val to3 = intent?.getStringExtra("to3")
 
         if (to1 != null || to2 != null || to3 != null) {
-            toList = listOf(
-                to1 ?: "",
-                to2 ?: "",
-                to3 ?: ""
-            ).filter { it.isNotEmpty() }
-
+            toList = listOf(to1 ?: "", to2 ?: "", to3 ?: "").filter { it.isNotEmpty() }
             subject = intent?.getStringExtra("subject") ?: subject
             body = intent?.getStringExtra("body") ?: body
         }
-        // [変更] ここまで
 
         Log.d("Service", "toList=$toList subject=$subject body=$body")
 
@@ -94,7 +86,6 @@ class SleepMonitorService : Service() {
 
         return START_STICKY
     }
-
 
     private fun createNotification(): Notification {
         val channelId = "SleepMonitorChannel"
@@ -110,8 +101,6 @@ class SleepMonitorService : Service() {
 
     @SuppressLint("ScheduleExactAlarm")
     private fun setSleepAlarm() {
-
-        // [追加] 権限チェック：なければ通知で設定画面へ誘導してreturn
         val alarmManager = getSystemService(ALARM_SERVICE) as AlarmManager
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             if (!alarmManager.canScheduleExactAlarms()) {
@@ -120,16 +109,64 @@ class SleepMonitorService : Service() {
                 return
             }
         }
-        // [追加] ここまで
 
-        Log.d("Alarm", "送信予定セット toList=$toList")
+        Log.d("Alarm", "送信予定セット toList=$toList 間隔=${sendIntervalSec}秒")
+
+        val warningInterval = sendIntervalSec - 10  // [変更] 送信10秒前に警告
+
+        // ① 警告用
+        val warningIntent = Intent(this, WarningReceiver::class.java).apply {
+            putStringArrayListExtra("toList", ArrayList(toList))
+            putExtra("subject", subject)
+            putExtra("body", body)
+        }
+        val warningPendingIntent = PendingIntent.getBroadcast(
+            this, 1, warningIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        // ② 送信用
+        val sendIntent = Intent(this, SleepAlarmReceiver::class.java).apply {
+            putStringArrayListExtra("toList", ArrayList(toList))
+            putExtra("subject", subject)
+            putExtra("body", body)
+        }
+        val sendPendingIntent = PendingIntent.getBroadcast(
+            this, 2, sendIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val now = System.currentTimeMillis()
+
+        alarmManager.setExactAndAllowWhileIdle(
+            AlarmManager.RTC_WAKEUP,
+            now + warningInterval * 1000L,
+            warningPendingIntent
+        )
+        alarmManager.setExactAndAllowWhileIdle(
+            AlarmManager.RTC_WAKEUP,
+            now + sendIntervalSec * 1000L,
+            sendPendingIntent
+        )
+    }
+
+    // [追加] 再送信アラームをセット（送信後に呼ぶ）
+    @SuppressLint("ScheduleExactAlarm")
+    fun setResendAlarm() {
+        val alarmManager = getSystemService(ALARM_SERVICE) as AlarmManager
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            if (!alarmManager.canScheduleExactAlarms()) return
+        }
+
+        Log.d("Alarm", "再送信アラームセット 間隔=${sendIntervalSec}秒")
+
+        val warningInterval = sendIntervalSec - 10
 
         val warningIntent = Intent(this, WarningReceiver::class.java).apply {
             putStringArrayListExtra("toList", ArrayList(toList))
             putExtra("subject", subject)
             putExtra("body", body)
         }
-
         val warningPendingIntent = PendingIntent.getBroadcast(
             this, 1, warningIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
@@ -140,7 +177,6 @@ class SleepMonitorService : Service() {
             putExtra("subject", subject)
             putExtra("body", body)
         }
-
         val sendPendingIntent = PendingIntent.getBroadcast(
             this, 2, sendIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
@@ -150,16 +186,16 @@ class SleepMonitorService : Service() {
 
         alarmManager.setExactAndAllowWhileIdle(
             AlarmManager.RTC_WAKEUP,
-            now + 50 * 1000L,
+            now + warningInterval * 1000L,
             warningPendingIntent
         )
-
         alarmManager.setExactAndAllowWhileIdle(
             AlarmManager.RTC_WAKEUP,
-            now + 60 * 1000L,
+            now + sendIntervalSec * 1000L,
             sendPendingIntent
         )
     }
+    // [追加] ここまで
 
     // [追加] exactAlarm権限がない場合に設定画面へ誘導する通知を出す
     private fun notifyExactAlarmPermission() {
@@ -189,9 +225,9 @@ class SleepMonitorService : Service() {
 
         notificationManager.notify(200, notification)
     }
-    // [追加] ここまで
 
-    private fun cancelSleepAlarm() {
+    // [追加] ここまで
+        private fun cancelSleepAlarm() {
         val alarmManager = getSystemService(ALARM_SERVICE) as AlarmManager
 
         val warningIntent = Intent(this, WarningReceiver::class.java)
@@ -217,15 +253,23 @@ class SleepMonitorService : Service() {
         prefs.edit().putLong("last_active", System.currentTimeMillis()).apply()
     }
 
+    // [追加] 送信時刻を記録
+    fun updateLastSentTime() {
+        val prefs = getSharedPreferences("monitor", MODE_PRIVATE)
+        prefs.edit().putLong("last_sent", System.currentTimeMillis()).apply()
+        Log.d("SleepAlertService", "last_sent更新")
+    }
+    // [追加] ここまで
+
     private fun saveSettings() {
         val prefs = getSharedPreferences("monitor", MODE_PRIVATE)
         prefs.edit()
             .putString("to1", toList.getOrNull(0))
             .putString("to2", toList.getOrNull(1))
             .putString("to3", toList.getOrNull(2))
-            .putStringSet("toList", toList.toSet()) // [追加] CheckWorker用にStringSetでも保存
-            .putString("subject", subject)           // [追加] 再起動後の復元用
-            .putString("body", body)                 // [追加] 再起動後の復元用
+            .putStringSet("toList", toList.toSet())
+            .putString("subject", subject)
+            .putString("body", body)
             .apply()
     }
 
@@ -238,9 +282,12 @@ class SleepMonitorService : Service() {
             prefs.getString("to3", "") ?: ""
         ).filter { it.isNotEmpty() }
 
-        // [追加] subject/bodyも復元（BootReceiver経由の起動時に使われる）
         subject = prefs.getString("subject", "緊急連絡") ?: "緊急連絡"
         body = prefs.getString("body", "自動送信メッセージ") ?: "自動送信メッセージ"
+
+        // [追加] 送信間隔を読み込む
+        sendIntervalSec = prefs.getLong("send_interval_sec", 60L)
+        Log.d("Service", "送信間隔: ${sendIntervalSec}秒")
         // [追加] ここまで
     }
 
@@ -255,7 +302,6 @@ class SleepMonitorService : Service() {
             }
             isReceiverRegistered = false
         }
-
         cancelSleepAlarm()
     }
 
