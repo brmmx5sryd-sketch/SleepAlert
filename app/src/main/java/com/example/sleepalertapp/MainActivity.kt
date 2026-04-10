@@ -10,6 +10,7 @@ import androidx.work.*
 import java.util.concurrent.TimeUnit
 import android.provider.ContactsContract
 import android.Manifest
+import android.util.Log
 import androidx.appcompat.app.AlertDialog
 import androidx.core.app.ActivityCompat
 
@@ -26,18 +27,28 @@ class MainActivity : AppCompatActivity() {
     private lateinit var buttonSelect1: Button
     private lateinit var buttonSelect2: Button
     private lateinit var buttonSelect3: Button
+    private lateinit var buttonSendInterval: Button
+    private lateinit var textViewSendInterval: TextView
+    private lateinit var buttonSaveSettings: Button
 
-    // [追加] Worker設定UI
-    private lateinit var editTextWorkerInterval: EditText
-    private lateinit var editTextSendInterval: EditText
-    private lateinit var editTextThreshold: EditText
-    private lateinit var switchTestMode: Switch
-    private lateinit var buttonSaveWorkerSettings: Button
-    // [追加] ここまで
+    // [追加] 権限状態表示
+    private lateinit var textViewBattery: TextView
+    private lateinit var textViewBackground: TextView
+    private lateinit var textViewAlarm: TextView
 
     private val REQUEST_CONTACT_1 = 101
     private val REQUEST_CONTACT_2 = 102
     private val REQUEST_CONTACT_3 = 103
+
+    private val sendIntervalOptions = listOf(
+        Pair("12時間", 12 * 60 * 60L),
+        Pair("24時間", 24 * 60 * 60L),
+        Pair("36時間", 36 * 60 * 60L),
+        Pair("48時間", 48 * 60 * 60L),
+        Pair("30分（テスト）", 30 * 60L)
+    )
+
+    private var selectedSendIntervalSec: Long = 24 * 60 * 60L
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -61,50 +72,64 @@ class MainActivity : AppCompatActivity() {
         buttonSelect1 = findViewById(R.id.buttonSelect1)
         buttonSelect2 = findViewById(R.id.buttonSelect2)
         buttonSelect3 = findViewById(R.id.buttonSelect3)
+        buttonSendInterval = findViewById(R.id.buttonSendInterval)
+        textViewSendInterval = findViewById(R.id.textViewSendInterval)
+        buttonSaveSettings = findViewById(R.id.buttonSaveSettings)
 
-        // [追加] Worker設定UIのバインド
-        editTextWorkerInterval = findViewById(R.id.editTextWorkerInterval)
-        editTextThreshold = findViewById(R.id.editTextThreshold)
-        switchTestMode = findViewById(R.id.switchTestMode)
-        buttonSaveWorkerSettings = findViewById(R.id.buttonSaveWorkerSettings)
-        editTextSendInterval = findViewById(R.id.editTextSendInterval)
-        // [追加] ここまで
+        // [追加] 権限状態表示のバインド
+        textViewBattery = findViewById(R.id.textViewBattery)
+        textViewBackground = findViewById(R.id.textViewBackground)
+        textViewAlarm = findViewById(R.id.textViewAlarm)
 
-         val prefs = getSharedPreferences("monitor", MODE_PRIVATE)
+        val prefs = getSharedPreferences("monitor", MODE_PRIVATE)
         editTextTo1.setText(prefs.getString("to1", ""))
         editTextTo2.setText(prefs.getString("to2", ""))
         editTextTo3.setText(prefs.getString("to3", ""))
         editTextSubject.setText(prefs.getString("subject", ""))
         editTextBody.setText(prefs.getString("body", ""))
-        editTextWorkerInterval.setText(prefs.getLong("worker_interval", 15L).toString())
-        editTextThreshold.setText(prefs.getLong("threshold_value", 24L).toString())
-        editTextSendInterval.setText(prefs.getLong("send_interval_sec", 60L).toString())
-        switchTestMode.isChecked = prefs.getBoolean("test_mode", false)
-        // [追加] ここまで
+
+        selectedSendIntervalSec = prefs.getLong("send_interval_sec", 24 * 60 * 60L)
+        updateSendIntervalText()
+
+        // [追加] 起動時に権限状態を表示（アプリの進行には影響しない）
+        updatePermissionStatus()
+
+        buttonSendInterval.setOnClickListener {
+            val options = sendIntervalOptions.map { it.first }.toTypedArray()
+            AlertDialog.Builder(this)
+                .setTitle("メール送信時間を選択")
+                .setItems(options) { _, which ->
+                    selectedSendIntervalSec = sendIntervalOptions[which].second
+                    updateSendIntervalText()
+                }
+                .show()
+        }
+
+        buttonSaveSettings.setOnClickListener {
+            val workerThresholdSec = selectedSendIntervalSec + 60 * 60L
+
+            prefs.edit()
+                .putString("to1", editTextTo1.text.toString())
+                .putString("to2", editTextTo2.text.toString())
+                .putString("to3", editTextTo3.text.toString())
+                .putStringSet("toList", listOf(
+                    editTextTo1.text.toString(),
+                    editTextTo2.text.toString(),
+                    editTextTo3.text.toString()
+                ).filter { it.isNotBlank() }.toSet())
+                .putString("subject", editTextSubject.text.toString())
+                .putString("body", editTextBody.text.toString())
+                .putLong("send_interval_sec", selectedSendIntervalSec)
+                .putLong("worker_threshold_sec", workerThresholdSec)
+                .apply()
+
+            Toast.makeText(this, "設定を保存しました", Toast.LENGTH_SHORT).show()
+        }
 
         buttonStart.setOnClickListener {
-            val intent = Intent(this, SleepMonitorService::class.java).apply {
-                putExtra("to1", editTextTo1.text.toString())
-                putExtra("to2", editTextTo2.text.toString())
-                putExtra("to3", editTextTo3.text.toString())
-                putExtra("subject", editTextSubject.text.toString())
-                putExtra("body", editTextBody.text.toString())
-            }
-            startForegroundService(intent)
 
-            // [変更] Worker間隔をSharedPrefsから読んで反映
-            val interval = prefs.getLong("worker_interval", 15L)
-            val workRequest = PeriodicWorkRequestBuilder<CheckWorker>(
-                interval, TimeUnit.MINUTES
-            ).build()
-
-            WorkManager.getInstance(this).enqueueUniquePeriodicWork(
-                "check_worker",
-                ExistingPeriodicWorkPolicy.UPDATE,
-                workRequest
-            )
-
-            Toast.makeText(this, "常駐監視を開始しました（Worker間隔: ${interval}分）", Toast.LENGTH_SHORT).show()
+            // 権限不足でも進行は止めない・ダイアログも出さない
+            startMonitoring()
         }
 
         buttonStop.setOnClickListener {
@@ -131,56 +156,79 @@ class MainActivity : AppCompatActivity() {
         buttonSelect1.setOnClickListener { openContactPicker(REQUEST_CONTACT_1) }
         buttonSelect2.setOnClickListener { openContactPicker(REQUEST_CONTACT_2) }
         buttonSelect3.setOnClickListener { openContactPicker(REQUEST_CONTACT_3) }
-
-
-        buttonSaveWorkerSettings.setOnClickListener {
-            val interval = editTextWorkerInterval.text.toString().toLongOrNull()
-            val threshold = editTextThreshold.text.toString().toLongOrNull()
-            val sendInterval = editTextSendInterval.text.toString().toLongOrNull()
-            val testMode = switchTestMode.isChecked
-
-            if (interval == null || interval < 15) {
-                Toast.makeText(this, "Worker間隔は15分以上で入力してください", Toast.LENGTH_SHORT).show()
-                return@setOnClickListener
-            }
-            if (threshold == null || threshold < 1) {
-                Toast.makeText(this, "閾値は1以上で入力してください", Toast.LENGTH_SHORT).show()
-                return@setOnClickListener
-            }
-            if (sendInterval == null || sendInterval < 10) {
-                Toast.makeText(this, "送信間隔は10秒以上で入力してください", Toast.LENGTH_SHORT).show()
-                return@setOnClickListener
-            }
-
-            // [変更] 全パラメータを保存
-            prefs.edit()
-                .putString("to1", editTextTo1.text.toString())
-                .putString("to2", editTextTo2.text.toString())
-                .putString("to3", editTextTo3.text.toString())
-                .putStringSet("toList", listOf(
-                    editTextTo1.text.toString(),
-                    editTextTo2.text.toString(),
-                    editTextTo3.text.toString()
-                ).filter { it.isNotBlank() }.toSet())
-                .putString("subject", editTextSubject.text.toString())
-                .putString("body", editTextBody.text.toString())
-                .putLong("worker_interval", interval)
-                .putLong("threshold_value", threshold)
-                .putLong("send_interval_sec", sendInterval)
-                .putBoolean("test_mode", testMode)
-                .apply()
-            // [変更] ここまで
-
-            val unit = if (testMode) "分" else "時間"
-            Toast.makeText(
-                this,
-                "設定を保存しました",
-                Toast.LENGTH_SHORT
-            ).show()
-        }
     }
 
-    // openContactPicker・showEmailDialog・setEmail は変更なし
+    // [追加] 権限状態を表示する（アプリの進行には影響しない）
+    private fun updatePermissionStatus() {
+        val batteryOk = PermissionHelper.isBatteryOptimizationIgnored(this)
+        val alarmOk = PermissionHelper.isExactAlarmAllowed(this)
+
+        textViewBattery.text = if (batteryOk) {
+            "✅ [バッテリー] 設定済"
+        } else {
+            "❌ [バッテリー] 未設定"
+        }
+
+        // バックグラウンドはAPIで確認できないため常に案内
+        textViewBackground.text = "⚠️ [バックグラウンド] アプリ設定で「制限なし」を確認してください"
+
+        textViewAlarm.text = if (alarmOk) {
+            "✅ [アラーム権限] 設定済"
+        } else {
+            "❌ [アラーム権限] 未設定"
+        }
+    }
+    // [追加] ここまで
+
+    private fun startMonitoring() {
+        val prefs = getSharedPreferences("monitor", MODE_PRIVATE)
+        val to1 = editTextTo1.text.toString()
+        val to2 = editTextTo2.text.toString()
+        val to3 = editTextTo3.text.toString()
+        val sendIntervalSec = prefs.getLong("send_interval_sec", 24 * 60 * 60L)
+        val workerThresholdSec = prefs.getLong("worker_threshold_sec", 25 * 60 * 60L)
+        val toList = listOf(to1, to2, to3).filter { it.isNotBlank() }
+
+        Log.d("StartConfig", "=== 監視開始 設定確認 ===")
+        Log.d("StartConfig", "【SleepManager】")
+        Log.d("StartConfig", "  メール送信待機時間  : ${sendIntervalSec}秒 (${sendIntervalSec / 3600}時間${(sendIntervalSec % 3600) / 60}分)")
+        Log.d("StartConfig", "  警告アラーム発火    : 送信10秒前 → ${sendIntervalSec - 10}秒後")
+        Log.d("StartConfig", "【Worker】")
+        Log.d("StartConfig", "  送信閾値            : ${workerThresholdSec}秒 (${workerThresholdSec / 3600}時間${(workerThresholdSec % 3600) / 60}分)")
+        Log.d("StartConfig", "  監視サイクル        : 15分ごと")
+        Log.d("StartConfig", "【メール送信先】")
+        toList.forEachIndexed { index, email ->
+            Log.d("StartConfig", "  宛先${index + 1}: $email")
+        }
+        Log.d("StartConfig", "========================")
+
+        val intent = Intent(this, SleepMonitorService::class.java).apply {
+            putExtra("to1", to1)
+            putExtra("to2", to2)
+            putExtra("to3", to3)
+            putExtra("subject", editTextSubject.text.toString())
+            putExtra("body", editTextBody.text.toString())
+        }
+        startForegroundService(intent)
+
+        val workRequest = PeriodicWorkRequestBuilder<CheckWorker>(
+            15, TimeUnit.MINUTES
+        ).build()
+
+        WorkManager.getInstance(this).enqueueUniquePeriodicWork(
+            "check_worker",
+            ExistingPeriodicWorkPolicy.UPDATE,
+            workRequest
+        )
+
+        Toast.makeText(this, "常駐監視を開始しました", Toast.LENGTH_SHORT).show()
+    }
+
+    private fun updateSendIntervalText() {
+        val label = sendIntervalOptions.find { it.second == selectedSendIntervalSec }?.first ?: "未設定"
+        textViewSendInterval.text = label
+    }
+
     private fun openContactPicker(requestCode: Int) {
         if (ActivityCompat.checkSelfPermission(
                 this, Manifest.permission.READ_CONTACTS

@@ -81,14 +81,49 @@
             android:layout_height="48dp"
             android:hint="件名" />
 
-        <!-- 本文 -->
+        <!-- 本文（2行） -->
         <EditText
             android:id="@+id/editTextBody"
             android:layout_width="match_parent"
-            android:layout_height="150dp"
+            android:layout_height="wrap_content"
             android:hint="本文"
             android:gravity="top"
+            android:lines="2"
+            android:maxLines="2"
+            android:minLines="2"
             android:inputType="textMultiLine" />
+
+        <!-- メール送信時間 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginTop="8dp">
+
+            <Button
+                android:id="@+id/buttonSendInterval"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="メール送信時間" />
+
+            <TextView
+                android:id="@+id/textViewSendInterval"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_gravity="center_vertical"
+                android:text="未設定"
+                android:textSize="14sp"
+                android:gravity="center" />
+        </LinearLayout>
+
+        <!-- 設定保存 -->
+        <Button
+            android:id="@+id/buttonSaveSettings"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:minHeight="48dp"
+            android:text="設定を保存" />
 
         <!-- 自動送信開始 -->
         <Button
@@ -114,114 +149,31 @@
             android:minHeight="48dp"
             android:text="テスト送信" />
 
-        <!-- Worker設定セクション -->
+        <!-- 権限状態表示 -->
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="── Worker設定 ──"
-            android:gravity="center"
-            android:layout_marginTop="8dp"
+            android:text="必須設定　未設定の場合は設定してください。"
+            android:textSize="12sp"
+            android:layout_marginTop="12dp" />
+
+        <TextView
+            android:id="@+id/textViewBattery"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
             android:textSize="12sp" />
 
-        <!-- [追加] 送信間隔 -->
-        <LinearLayout
+        <TextView
+            android:id="@+id/textViewBackground"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="horizontal">
+            android:textSize="12sp" />
 
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="送信間隔（秒）："
-                android:textSize="12sp"
-                android:layout_gravity="center_vertical" />
-
-            <EditText
-                android:id="@+id/editTextSendInterval"
-                android:layout_width="60dp"
-                android:layout_height="40dp"
-                android:textSize="12sp"
-                android:inputType="number"
-                android:hint="60" />
-        </LinearLayout>
-
-        <!-- Worker間隔 -->
-        <LinearLayout
+        <TextView
+            android:id="@+id/textViewAlarm"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="horizontal">
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Worker間隔（分）："
-                android:textSize="12sp"
-                android:layout_gravity="center_vertical" />
-
-            <EditText
-                android:id="@+id/editTextWorkerInterval"
-                android:layout_width="60dp"
-                android:layout_height="40dp"
-                android:textSize="12sp"
-                android:inputType="number"
-                android:hint="15" />
-        </LinearLayout>
-
-        <!-- 無操作閾値 -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal">
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="無操作閾値："
-                android:textSize="12sp"
-                android:layout_gravity="center_vertical" />
-
-            <EditText
-                android:id="@+id/editTextThreshold"
-                android:layout_width="60dp"
-                android:layout_height="40dp"
-                android:textSize="12sp"
-                android:inputType="number"
-                android:hint="24" />
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="時間（テストモード時は分）"
-                android:textSize="12sp"
-                android:layout_gravity="center_vertical" />
-        </LinearLayout>
-
-        <!-- テストモード -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal">
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="テストモード（閾値を分単位に）："
-                android:textSize="12sp"
-                android:layout_gravity="center_vertical" />
-
-            <Switch
-                android:id="@+id/switchTestMode"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content" />
-        </LinearLayout>
-
-        <Button
-            android:id="@+id/buttonSaveWorkerSettings"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:minHeight="48dp"
-            android:textSize="12sp"
-            android:text="設定を保存" />
+            android:textSize="12sp" />
 
     </LinearLayout>
 </ScrollView>

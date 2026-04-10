@@ -28,22 +28,32 @@ class CheckWorker(context: Context, params: WorkerParameters) : Worker(context, 
 
         // Serviceが死んでいる場合のみ以下を実行
         val lastActive = prefs.getLong("last_active", 0L)
+        val workerThresholdSec = prefs.getLong("worker_threshold_sec", 25 * 60 * 60L) // デフォルト25時間
         val diff = now - lastActive
 
-        val testMode = prefs.getBoolean("test_mode", false)
-        val thresholdValue = prefs.getLong("threshold_value", 24L)
+        Log.d("CheckWorker", "経過: ${diff/1000/60}分 / 閾値: ${workerThresholdSec/60}分")
 
-        val limit = if (testMode) {
-            thresholdValue * 60 * 1000L
-        } else {
-            thresholdValue * 60 * 60 * 1000L
-        }
 
-        val diffMin = diff / 1000 / 60
-        val limitMin = limit / 1000 / 60
-        Log.d("CheckWorker", "最終操作からの経過: ${diffMin}分 / 閾値: ${limitMin}分 / テストモード: $testMode")
+        //val testMode = prefs.getBoolean("test_mode", false)
+        //val thresholdValue = prefs.getLong("threshold_value", 24L)
 
-        if (diff > limit) {
+     //   val limit = if (testMode) {
+     //       thresholdValue * 60 * 1000L
+     //   } else {
+     //       thresholdValue * 60 * 60 * 1000L
+     //   }
+
+     //   val diffMin = diff / 1000 / 60
+     //   val limitMin = limit / 1000 / 60
+     //   Log.d("CheckWorker", "最終操作からの経過: ${diffMin}分 / 閾値: ${limitMin}分 / テストモード: $testMode")
+
+    //    if (diff > limit) {
+
+        // [変更] worker_threshold_sec から読み込む
+
+
+        if (diff > workerThresholdSec * 1000L) {
+
             Log.d("CheckWorker", "閾値超過！メール送信します")
 
             val toList = prefs.getStringSet("toList", emptySet())?.toList() ?: emptyList()
