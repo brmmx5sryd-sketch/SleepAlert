@@ -4,6 +4,8 @@ package com.example.sleepalertapp
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Bundle
+import android.text.Editable
+import android.text.TextWatcher
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
 import androidx.work.*
@@ -30,8 +32,6 @@ class MainActivity : AppCompatActivity() {
     private lateinit var buttonSendInterval: Button
     private lateinit var textViewSendInterval: TextView
     private lateinit var buttonSaveSettings: Button
-
-    // [追加] 権限状態表示
     private lateinit var textViewBattery: TextView
     private lateinit var textViewBackground: TextView
     private lateinit var textViewAlarm: TextView
@@ -49,6 +49,12 @@ class MainActivity : AppCompatActivity() {
     )
 
     private var selectedSendIntervalSec: Long = 24 * 60 * 60L
+
+    // [追加] SharedPrefsのキー定数
+    companion object {
+        const val KEY_SETTINGS_SAVED = "settings_saved"
+        const val KEY_TEST_SEND_SUCCESS = "test_send_success"
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -75,8 +81,6 @@ class MainActivity : AppCompatActivity() {
         buttonSendInterval = findViewById(R.id.buttonSendInterval)
         textViewSendInterval = findViewById(R.id.textViewSendInterval)
         buttonSaveSettings = findViewById(R.id.buttonSaveSettings)
-
-        // [追加] 権限状態表示のバインド
         textViewBattery = findViewById(R.id.textViewBattery)
         textViewBackground = findViewById(R.id.textViewBackground)
         textViewAlarm = findViewById(R.id.textViewAlarm)
@@ -90,9 +94,20 @@ class MainActivity : AppCompatActivity() {
 
         selectedSendIntervalSec = prefs.getLong("send_interval_sec", 24 * 60 * 60L)
         updateSendIntervalText()
-
-        // [追加] 起動時に権限状態を表示（アプリの進行には影響しない）
         updatePermissionStatus()
+
+        // [追加] メールアドレス変更 → テスト送信フラグをリセット
+        val addressWatcher = object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+            override fun afterTextChanged(s: Editable?) {
+                prefs.edit().putBoolean(KEY_TEST_SEND_SUCCESS, false).apply()
+            }
+        }
+        editTextTo1.addTextChangedListener(addressWatcher)
+        editTextTo2.addTextChangedListener(addressWatcher)
+        editTextTo3.addTextChangedListener(addressWatcher)
+        // [追加] ここまで
 
         buttonSendInterval.setOnClickListener {
             val options = sendIntervalOptions.map { it.first }.toTypedArray()
@@ -101,6 +116,9 @@ class MainActivity : AppCompatActivity() {
                 .setItems(options) { _, which ->
                     selectedSendIntervalSec = sendIntervalOptions[which].second
                     updateSendIntervalText()
+
+                    // [追加] 送信時間変更 → 設定保存フラグをリセット
+                    prefs.edit().putBoolean(KEY_SETTINGS_SAVED, false).apply()
                 }
                 .show()
         }
@@ -121,6 +139,7 @@ class MainActivity : AppCompatActivity() {
                 .putString("body", editTextBody.text.toString())
                 .putLong("send_interval_sec", selectedSendIntervalSec)
                 .putLong("worker_threshold_sec", workerThresholdSec)
+                .putBoolean(KEY_SETTINGS_SAVED, true)  // [追加]
                 .apply()
 
             Toast.makeText(this, "設定を保存しました", Toast.LENGTH_SHORT).show()
@@ -128,7 +147,30 @@ class MainActivity : AppCompatActivity() {
 
         buttonStart.setOnClickListener {
 
-            // 権限不足でも進行は止めない・ダイアログも出さない
+            // [追加] 1. 設定保存チェック
+            if (!prefs.getBoolean(KEY_SETTINGS_SAVED, false)) {
+                AlertDialog.Builder(this)
+                    .setTitle("設定が保存されていません")
+                    .setMessage("「設定を保存」ボタンを押してから監視を開始してください。")
+                    .setPositiveButton("OK", null)
+                    .show()
+                return@setOnClickListener
+            }
+
+            // [追加] 2. 送信先・件名・本文チェック
+            if (!isMailInputValid()) return@setOnClickListener
+
+            // [追加] 3. テスト送信チェック
+            if (!prefs.getBoolean(KEY_TEST_SEND_SUCCESS, false)) {
+                AlertDialog.Builder(this)
+                    .setTitle("テスト送信が完了していません")
+                    .setMessage("「テスト送信」ボタンを押して送信を確認してから監視を開始してください。")
+                    .setPositiveButton("OK", null)
+                    .show()
+                return@setOnClickListener
+            }
+            // [追加] ここまで
+
             startMonitoring()
         }
 
@@ -142,6 +184,10 @@ class MainActivity : AppCompatActivity() {
         }
 
         buttonTestSend.setOnClickListener {
+
+            // [追加] 送信先・件名・本文チェック
+            if (!isMailInputValid()) return@setOnClickListener
+
             val toList = listOf(
                 editTextTo1.text.toString(),
                 editTextTo2.text.toString(),
@@ -149,7 +195,11 @@ class MainActivity : AppCompatActivity() {
             ).filter { it.isNotBlank() }
             val subject = editTextSubject.text.toString()
             val body = editTextBody.text.toString()
+
             EmailSender.sendMultiple(applicationContext, toList, subject, body)
+
+            // [追加] テスト送信成功フラグON
+            prefs.edit().putBoolean(KEY_TEST_SEND_SUCCESS, true).apply()
             Toast.makeText(this, "テストメール送信中（複数）", Toast.LENGTH_SHORT).show()
         }
 
@@ -158,7 +208,45 @@ class MainActivity : AppCompatActivity() {
         buttonSelect3.setOnClickListener { openContactPicker(REQUEST_CONTACT_3) }
     }
 
-    // [追加] 権限状態を表示する（アプリの進行には影響しない）
+    // [追加] 送信先・件名・本文の入力チェック
+    private fun isMailInputValid(): Boolean {
+        val to1 = editTextTo1.text.toString()
+        val to2 = editTextTo2.text.toString()
+        val to3 = editTextTo3.text.toString()
+        val subject = editTextSubject.text.toString()
+        val body = editTextBody.text.toString()
+
+        if (listOf(to1, to2, to3).all { it.isBlank() }) {
+            AlertDialog.Builder(this)
+                .setTitle("送信先が入力されていません")
+                .setMessage("送信先メールアドレスを1件以上入力してください。")
+                .setPositiveButton("OK", null)
+                .show()
+            return false
+        }
+
+        if (subject.isBlank()) {
+            AlertDialog.Builder(this)
+                .setTitle("件名が入力されていません")
+                .setMessage("件名を入力してください。")
+                .setPositiveButton("OK", null)
+                .show()
+            return false
+        }
+
+        if (body.isBlank()) {
+            AlertDialog.Builder(this)
+                .setTitle("本文が入力されていません")
+                .setMessage("本文を入力してください。")
+                .setPositiveButton("OK", null)
+                .show()
+            return false
+        }
+
+        return true
+    }
+    // [追加] ここまで
+
     private fun updatePermissionStatus() {
         val batteryOk = PermissionHelper.isBatteryOptimizationIgnored(this)
         val alarmOk = PermissionHelper.isExactAlarmAllowed(this)
@@ -169,16 +257,14 @@ class MainActivity : AppCompatActivity() {
             "❌ [バッテリー] 未設定"
         }
 
-        // バックグラウンドはAPIで確認できないため常に案内
-        textViewBackground.text = "⚠️ [バックグラウンド] アプリ設定で「制限なし」を確認してください"
-
         textViewAlarm.text = if (alarmOk) {
             "✅ [アラーム権限] 設定済"
         } else {
             "❌ [アラーム権限] 未設定"
         }
+
+        textViewBackground.text = "⚠️ [バックグラウンド] アプリ設定で「制限なし」を確認してください"
     }
-    // [追加] ここまで
 
     private fun startMonitoring() {
         val prefs = getSharedPreferences("monitor", MODE_PRIVATE)
