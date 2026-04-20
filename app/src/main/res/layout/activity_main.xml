@@ -74,24 +74,21 @@
                 android:inputType="textEmailAddress" />
         </LinearLayout>
 
-        <!-- 件名 -->
+        <!-- 送信者名 -->
         <EditText
-            android:id="@+id/editTextSubject"
+            android:id="@+id/editTextSenderName"
             android:layout_width="match_parent"
             android:layout_height="48dp"
-            android:hint="件名" />
+            android:hint="あなたの名前（例: 田中太郎）"
+            android:inputType="textPersonName" />
 
-        <!-- 本文（2行） -->
+        <!-- 送信者電話番号 -->
         <EditText
-            android:id="@+id/editTextBody"
+            android:id="@+id/editTextSenderPhone"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:hint="本文"
-            android:gravity="top"
-            android:lines="2"
-            android:maxLines="2"
-            android:minLines="2"
-            android:inputType="textMultiLine" />
+            android:layout_height="48dp"
+            android:hint="電話番号（例: 090-1234-5678）"
+            android:inputType="phone" />
 
         <!-- メール送信時間 -->
         <LinearLayout

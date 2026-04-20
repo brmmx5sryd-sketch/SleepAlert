@@ -22,8 +22,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var editTextTo1: EditText
     private lateinit var editTextTo2: EditText
     private lateinit var editTextTo3: EditText
-    private lateinit var editTextSubject: EditText
-    private lateinit var editTextBody: EditText
+    private lateinit var editTextSenderName: EditText
+    private lateinit var editTextSenderPhone: EditText
     private lateinit var buttonStart: Button
     private lateinit var buttonStop: Button
     private lateinit var buttonTestSend: Button
@@ -71,8 +71,8 @@ class MainActivity : AppCompatActivity() {
         editTextTo1 = findViewById(R.id.editTextTo1)
         editTextTo2 = findViewById(R.id.editTextTo2)
         editTextTo3 = findViewById(R.id.editTextTo3)
-        editTextSubject = findViewById(R.id.editTextSubject)
-        editTextBody = findViewById(R.id.editTextBody)
+        editTextSenderName  = findViewById(R.id.editTextSenderName)
+        editTextSenderPhone = findViewById(R.id.editTextSenderPhone)
         buttonStart = findViewById(R.id.buttonStart)
         buttonStop = findViewById(R.id.buttonStop)
         buttonTestSend = findViewById(R.id.buttonTestSend)
@@ -90,8 +90,8 @@ class MainActivity : AppCompatActivity() {
         editTextTo1.setText(prefs.getString("to1", ""))
         editTextTo2.setText(prefs.getString("to2", ""))
         editTextTo3.setText(prefs.getString("to3", ""))
-        editTextSubject.setText(prefs.getString("subject", ""))
-        editTextBody.setText(prefs.getString("body", ""))
+        editTextSenderName.setText(prefs.getString("sender_name", ""))
+        editTextSenderPhone.setText(prefs.getString("sender_phone", ""))
 
         selectedSendIntervalSec = prefs.getLong("send_interval_sec", 24 * 60 * 60L)
         updateSendIntervalText()
@@ -136,8 +136,8 @@ class MainActivity : AppCompatActivity() {
                     editTextTo2.text.toString(),
                     editTextTo3.text.toString()
                 ).filter { it.isNotBlank() }.toSet())
-                .putString("subject", editTextSubject.text.toString())
-                .putString("body", editTextBody.text.toString())
+                .putString("sender_name",  editTextSenderName.text.toString())
+                .putString("sender_phone", editTextSenderPhone.text.toString())
                 .putLong("send_interval_sec", selectedSendIntervalSec)
                 .putLong("worker_threshold_sec", workerThresholdSec)
                 .putBoolean(KEY_SETTINGS_SAVED, true)  // [追加]
@@ -194,9 +194,11 @@ class MainActivity : AppCompatActivity() {
                 editTextTo2.text.toString(),
                 editTextTo3.text.toString()
             ).filter { it.isNotBlank() }
-            val subject = editTextSubject.text.toString()
-            val body = editTextBody.text.toString()
 
+            val name  = editTextSenderName.text.toString()
+            val phone = editTextSenderPhone.text.toString()
+            val subject = MailTemplate.buildSubject(name)
+            val body    = MailTemplate.buildBody(name, phone, "テスト")
             EmailSender.sendMultiple(applicationContext, toList, subject, body)
 
             // [追加] テスト送信成功フラグON
@@ -214,8 +216,6 @@ class MainActivity : AppCompatActivity() {
         val to1 = editTextTo1.text.toString()
         val to2 = editTextTo2.text.toString()
         val to3 = editTextTo3.text.toString()
-        val subject = editTextSubject.text.toString()
-        val body = editTextBody.text.toString()
 
         if (listOf(to1, to2, to3).all { it.isBlank() }) {
             AlertDialog.Builder(this)
@@ -226,21 +226,18 @@ class MainActivity : AppCompatActivity() {
             return false
         }
 
-        if (subject.isBlank()) {
+        if (editTextSenderName.text.isBlank()) {
             AlertDialog.Builder(this)
-                .setTitle("件名が入力されていません")
-                .setMessage("件名を入力してください。")
-                .setPositiveButton("OK", null)
-                .show()
+                .setTitle("名前が入力されていません")
+                .setMessage("あなたの名前を入力してください。")
+                .setPositiveButton("OK", null).show()
             return false
         }
-
-        if (body.isBlank()) {
+        if (editTextSenderPhone.text.isBlank()) {
             AlertDialog.Builder(this)
-                .setTitle("本文が入力されていません")
-                .setMessage("本文を入力してください。")
-                .setPositiveButton("OK", null)
-                .show()
+                .setTitle("電話番号が入力されていません")
+                .setMessage("電話番号を入力してください。")
+                .setPositiveButton("OK", null).show()
             return false
         }
 
@@ -293,8 +290,8 @@ class MainActivity : AppCompatActivity() {
             putExtra("to1", to1)
             putExtra("to2", to2)
             putExtra("to3", to3)
-            putExtra("subject", editTextSubject.text.toString())
-            putExtra("body", editTextBody.text.toString())
+            putExtra("sender_name",  editTextSenderName.text.toString())
+            putExtra("sender_phone", editTextSenderPhone.text.toString())
         }
         startForegroundService(intent)
 

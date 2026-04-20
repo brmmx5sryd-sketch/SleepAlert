@@ -15,19 +15,25 @@ class SleepAlarmReceiver : BroadcastReceiver() {
                 prefs.getStringSet("toList", emptySet())?.toList() ?: emptyList()
             }
 
-        val subject = intent.getStringExtra("subject")
-            ?: context.getSharedPreferences("monitor", Context.MODE_PRIVATE)
-                .getString("subject", "緊急連絡") ?: "緊急連絡"
 
-        val body = intent.getStringExtra("body")
-            ?: context.getSharedPreferences("monitor", Context.MODE_PRIVATE)
-                .getString("body", "自動送信メッセージ") ?: "自動送信メッセージ"
+        val prefs      = context.getSharedPreferences("monitor", Context.MODE_PRIVATE)
+        val name       = prefs.getString("sender_name", "") ?: ""
+        val phone      = prefs.getString("sender_phone", "") ?: ""
+        val lastActive = prefs.getLong("last_active", System.currentTimeMillis())
+        val sleepSec   = (System.currentTimeMillis() - lastActive) / 1000
+        val sleepHours = sleepSec / 3600
+        val sleepMinutes = (sleepSec % 3600) / 60
+        val sleepLabel   = "${sleepHours}時間${sleepMinutes}分"
+
+        val subject = MailTemplate.buildSubject(name)
+        val body    = MailTemplate.buildBody(name, phone, sleepLabel)
+
+
 
         Log.d("SleepAlertReceiver", "メール送信トリガー(Alarm) toList=$toList")
         EmailSender.sendMultiple(context, toList, subject, body)
 
         // [追加] 送信時刻を記録してServiceに再送信アラームをセットさせる
-        val prefs = context.getSharedPreferences("monitor", Context.MODE_PRIVATE)
         prefs.edit().putLong("last_sent", System.currentTimeMillis()).apply()
         Log.d("SleepAlertReceiver", "last_sent更新")
 

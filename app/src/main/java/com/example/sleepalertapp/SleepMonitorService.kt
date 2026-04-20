@@ -11,8 +11,6 @@ import android.provider.Settings
 class SleepMonitorService : Service() {
 
     private var toList: List<String> = emptyList()
-    private lateinit var subject: String
-    private lateinit var body: String
     private var isReceiverRegistered = false
 
     // [追加] 送信間隔（秒）SharedPrefsから読む
@@ -72,11 +70,17 @@ class SleepMonitorService : Service() {
 
         if (to1 != null || to2 != null || to3 != null) {
             toList = listOf(to1 ?: "", to2 ?: "", to3 ?: "").filter { it.isNotEmpty() }
-            subject = intent?.getStringExtra("subject") ?: subject
-            body = intent?.getStringExtra("body") ?: body
+            val senderName  = intent?.getStringExtra("sender_name")
+            val senderPhone = intent?.getStringExtra("sender_phone")
+            if (senderName != null) {
+                getSharedPreferences("monitor", MODE_PRIVATE).edit()
+                    .putString("sender_name", senderName)
+                    .putString("sender_phone", senderPhone ?: "")
+                    .apply()
+            }
         }
 
-        Log.d("Service", "toList=$toList subject=$subject body=$body")
+        Log.d("Service", "toList=$toList")
 
         updateLastActiveTime()
         saveSettings()
@@ -117,8 +121,6 @@ class SleepMonitorService : Service() {
         // ① 警告用
         val warningIntent = Intent(this, WarningReceiver::class.java).apply {
             putStringArrayListExtra("toList", ArrayList(toList))
-            putExtra("subject", subject)
-            putExtra("body", body)
         }
         val warningPendingIntent = PendingIntent.getBroadcast(
             this, 1, warningIntent,
@@ -128,8 +130,6 @@ class SleepMonitorService : Service() {
         // ② 送信用
         val sendIntent = Intent(this, SleepAlarmReceiver::class.java).apply {
             putStringArrayListExtra("toList", ArrayList(toList))
-            putExtra("subject", subject)
-            putExtra("body", body)
         }
         val sendPendingIntent = PendingIntent.getBroadcast(
             this, 2, sendIntent,
@@ -164,8 +164,6 @@ class SleepMonitorService : Service() {
 
         val warningIntent = Intent(this, WarningReceiver::class.java).apply {
             putStringArrayListExtra("toList", ArrayList(toList))
-            putExtra("subject", subject)
-            putExtra("body", body)
         }
         val warningPendingIntent = PendingIntent.getBroadcast(
             this, 1, warningIntent,
@@ -174,8 +172,6 @@ class SleepMonitorService : Service() {
 
         val sendIntent = Intent(this, SleepAlarmReceiver::class.java).apply {
             putStringArrayListExtra("toList", ArrayList(toList))
-            putExtra("subject", subject)
-            putExtra("body", body)
         }
         val sendPendingIntent = PendingIntent.getBroadcast(
             this, 2, sendIntent,
@@ -268,8 +264,6 @@ class SleepMonitorService : Service() {
             .putString("to2", toList.getOrNull(1))
             .putString("to3", toList.getOrNull(2))
             .putStringSet("toList", toList.toSet())
-            .putString("subject", subject)
-            .putString("body", body)
             .apply()
     }
 
@@ -282,8 +276,6 @@ class SleepMonitorService : Service() {
             prefs.getString("to3", "") ?: ""
         ).filter { it.isNotEmpty() }
 
-        subject = prefs.getString("subject", "緊急連絡") ?: "緊急連絡"
-        body = prefs.getString("body", "自動送信メッセージ") ?: "自動送信メッセージ"
 
         // [追加] 送信間隔を読み込む
         sendIntervalSec = prefs.getLong("send_interval_sec", 60L)
