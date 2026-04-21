@@ -21,14 +21,13 @@ class SleepAlarmReceiver : BroadcastReceiver() {
         val phone      = prefs.getString("sender_phone", "") ?: ""
         val lastActive = prefs.getLong("last_active", System.currentTimeMillis())
         val sleepSec   = (System.currentTimeMillis() - lastActive) / 1000
-        val sleepHours = sleepSec / 3600
+        val sleepHours   = sleepSec / 3600
         val sleepMinutes = (sleepSec % 3600) / 60
-        val sleepLabel   = "${sleepHours}時間${sleepMinutes}分"
+        val roundedMinutes = (sleepMinutes / 10) * 10  // 10分単位で切り捨て
+        val sleepLabel   = "${sleepHours}時間${roundedMinutes.toString().padStart(2, '0')}分"
 
         val subject = MailTemplate.buildSubject(name)
         val body    = MailTemplate.buildBody(name, phone, sleepLabel)
-
-
 
         Log.d("SleepAlertReceiver", "メール送信トリガー(Alarm) toList=$toList")
         EmailSender.sendMultiple(context, toList, subject, body)

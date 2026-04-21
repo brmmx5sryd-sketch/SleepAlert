@@ -104,30 +104,33 @@ class SleepMonitorService : Service() {
     }
 
     @SuppressLint("ScheduleExactAlarm")
-    private fun setSleepAlarm() {
+    private fun scheduleAlarms() {
         val alarmManager = getSystemService(ALARM_SERVICE) as AlarmManager
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             if (!alarmManager.canScheduleExactAlarms()) {
-                Log.w("SleepAlertService", "exactAlarm権限なし。通知で誘導します")
+                Log.w("SleepAlertService", "exactAlarm権限なし")
                 notifyExactAlarmPermission()
                 return
             }
         }
 
-        Log.d("Alarm", "送信予定セット toList=$toList 間隔=${sendIntervalSec}秒")
+        val now = System.currentTimeMillis()
+        val isTestMode = sendIntervalSec == 30 * 60L  // 30分テストか判定
 
-        val warningInterval = sendIntervalSec - 10  // [変更] 送信10秒前に警告
+        // 警告アラームのキャンセル（古いものをクリア）
+        cancelWarningAlarms(alarmManager)
 
-        // ① 警告用
-        val warningIntent = Intent(this, WarningReceiver::class.java).apply {
-            putStringArrayListExtra("toList", ArrayList(toList))
+        if (isTestMode) {
+            // 30分テスト：10分前に1回だけ
+            setWarningAlarm(alarmManager, now, sendIntervalSec - 10 * 60L, 12, "30分後に緊急メールを送信します。\nスマートフォンを操作してください。")
+        } else {
+            // 通常：6時間前・3時間前・30分前
+            setWarningAlarm(alarmManager, now, sendIntervalSec - 6 * 60 * 60L,  10, "6時間後に緊急メールを送信します。\nスマートフォンを操作してください。")
+            setWarningAlarm(alarmManager, now, sendIntervalSec - 3 * 60 * 60L,  11, "3時間後に緊急メールを送信します。\nスマートフォンを操作してください。")
+            setWarningAlarm(alarmManager, now, sendIntervalSec - 30 * 60L,      12, "30分後に緊急メールを送信します。\nスマートフォンを操作してください。")
         }
-        val warningPendingIntent = PendingIntent.getBroadcast(
-            this, 1, warningIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
 
-        // ② 送信用
+        // メール送信アラーム
         val sendIntent = Intent(this, SleepAlarmReceiver::class.java).apply {
             putStringArrayListExtra("toList", ArrayList(toList))
         }
@@ -135,63 +138,58 @@ class SleepMonitorService : Service() {
             this, 2, sendIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-
-        val now = System.currentTimeMillis()
-
-        alarmManager.setExactAndAllowWhileIdle(
-            AlarmManager.RTC_WAKEUP,
-            now + warningInterval * 1000L,
-            warningPendingIntent
-        )
         alarmManager.setExactAndAllowWhileIdle(
             AlarmManager.RTC_WAKEUP,
             now + sendIntervalSec * 1000L,
             sendPendingIntent
         )
+
+        Log.d("Alarm", "アラームセット完了 間隔=${sendIntervalSec}秒 テスト=$isTestMode")
     }
 
-    // [追加] 再送信アラームをセット（送信後に呼ぶ）
+    private fun setWarningAlarm(
+        alarmManager: AlarmManager,
+        now: Long,
+        offsetSec: Long,
+        requestCode: Int,
+        message: String
+    ) {
+        if (offsetSec <= 0) return  // 送信間隔より短い場合はスキップ
+
+        val warningIntent = Intent(this, WarningReceiver::class.java).apply {
+            putExtra("message", message)
+        }
+        val pendingIntent = PendingIntent.getBroadcast(
+            this, requestCode, warningIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        alarmManager.setExactAndAllowWhileIdle(
+            AlarmManager.RTC_WAKEUP,
+            now + offsetSec * 1000L,
+            pendingIntent
+        )
+        Log.d("Alarm", "警告アラーム requestCode=$requestCode ${offsetSec/60}分後")
+    }
+
+    private fun cancelWarningAlarms(alarmManager: AlarmManager) {
+        listOf(10, 11, 12).forEach { code ->
+            val intent = PendingIntent.getBroadcast(
+                this, code, Intent(this, WarningReceiver::class.java),
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            alarmManager.cancel(intent)
+        }
+    }
+
+    @SuppressLint("ScheduleExactAlarm")
+    private fun setSleepAlarm() {
+        scheduleAlarms()
+    }
+
     @SuppressLint("ScheduleExactAlarm")
     fun setResendAlarm() {
-        val alarmManager = getSystemService(ALARM_SERVICE) as AlarmManager
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            if (!alarmManager.canScheduleExactAlarms()) return
-        }
-
-        Log.d("Alarm", "再送信アラームセット 間隔=${sendIntervalSec}秒")
-
-        val warningInterval = sendIntervalSec - 10
-
-        val warningIntent = Intent(this, WarningReceiver::class.java).apply {
-            putStringArrayListExtra("toList", ArrayList(toList))
-        }
-        val warningPendingIntent = PendingIntent.getBroadcast(
-            this, 1, warningIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-
-        val sendIntent = Intent(this, SleepAlarmReceiver::class.java).apply {
-            putStringArrayListExtra("toList", ArrayList(toList))
-        }
-        val sendPendingIntent = PendingIntent.getBroadcast(
-            this, 2, sendIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-
-        val now = System.currentTimeMillis()
-
-        alarmManager.setExactAndAllowWhileIdle(
-            AlarmManager.RTC_WAKEUP,
-            now + warningInterval * 1000L,
-            warningPendingIntent
-        )
-        alarmManager.setExactAndAllowWhileIdle(
-            AlarmManager.RTC_WAKEUP,
-            now + sendIntervalSec * 1000L,
-            sendPendingIntent
-        )
+        scheduleAlarms()
     }
-    // [追加] ここまで
 
     // [追加] exactAlarm権限がない場合に設定画面へ誘導する通知を出す
     private fun notifyExactAlarmPermission() {
@@ -223,22 +221,17 @@ class SleepMonitorService : Service() {
     }
 
     // [追加] ここまで
-        private fun cancelSleepAlarm() {
+    private fun cancelSleepAlarm() {
         val alarmManager = getSystemService(ALARM_SERVICE) as AlarmManager
 
-        val warningIntent = Intent(this, WarningReceiver::class.java)
-        val warningPendingIntent = PendingIntent.getBroadcast(
-            this, 1, warningIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
+        // 警告アラーム（3つ）キャンセル
+        cancelWarningAlarms(alarmManager)
 
-        val sendIntent = Intent(this, SleepAlarmReceiver::class.java)
+        // 送信アラームキャンセル
         val sendPendingIntent = PendingIntent.getBroadcast(
-            this, 2, sendIntent,
+            this, 2, Intent(this, SleepAlarmReceiver::class.java),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-
-        alarmManager.cancel(warningPendingIntent)
         alarmManager.cancel(sendPendingIntent)
 
         Log.d("SleepAlertService", "全アラームキャンセル")

@@ -28,6 +28,11 @@ class CheckWorker(context: Context, params: WorkerParameters) : Worker(context, 
 
         // Serviceが死んでいる場合のみ以下を実行
         val lastActive = prefs.getLong("last_active", 0L)
+        if (lastActive == 0L) {
+            Log.d("CheckWorker", "lastActive未設定のためスキップ")
+            return Result.success()
+        }
+
         val workerThresholdSec = prefs.getLong("worker_threshold_sec", 25 * 60 * 60L) // デフォルト25時間
         val diff = now - lastActive
 
@@ -57,8 +62,19 @@ class CheckWorker(context: Context, params: WorkerParameters) : Worker(context, 
             Log.d("CheckWorker", "閾値超過！メール送信します")
 
             val toList = prefs.getStringSet("toList", emptySet())?.toList() ?: emptyList()
-            val subject = prefs.getString("subject", "緊急連絡") ?: "緊急連絡"
-            val body = prefs.getString("body", "自動送信メッセージ") ?: "自動送信メッセージ"
+
+            val name  = prefs.getString("sender_name", "") ?: ""
+            val phone = prefs.getString("sender_phone", "") ?: ""
+            // 警告対応
+            //val lastActive = prefs.getLong("last_active", now)
+            val sleepSec = (now - lastActive) / 1000
+            val sleepHours = sleepSec / 3600
+            val sleepMinutes = (sleepSec % 3600) / 60
+            val roundedMinutes = (sleepMinutes / 10) * 10
+            val sleepLabel = "${sleepHours}時間${roundedMinutes.toString().padStart(2, '0')}分"
+
+            val subject = MailTemplate.buildSubject(name)
+            val body    = MailTemplate.buildBody(name, phone, sleepLabel)
 
             Log.d("CheckWorker", "送信先: $toList")
             EmailSender.sendMultiple(applicationContext, toList, subject, body)
