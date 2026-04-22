@@ -1,7 +1,6 @@
 //MainActivity.kt
 package com.example.sleepalertapp
 
-
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Bundle
@@ -51,7 +50,6 @@ class MainActivity : AppCompatActivity() {
 
     private var selectedSendIntervalSec: Long = 24 * 60 * 60L
 
-    // [追加] SharedPrefsのキー定数
     companion object {
         const val KEY_SETTINGS_SAVED = "settings_saved"
         const val KEY_TEST_SEND_SUCCESS = "test_send_success"
@@ -97,18 +95,33 @@ class MainActivity : AppCompatActivity() {
         updateSendIntervalText()
         updatePermissionStatus()
 
-        // [追加] メールアドレス変更 → テスト送信フラグをリセット
+        // メールアドレス変更 → テスト送信フラグ・設定保存フラグをリセット
         val addressWatcher = object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
             override fun afterTextChanged(s: Editable?) {
-                prefs.edit().putBoolean(KEY_TEST_SEND_SUCCESS, false).apply()
+                prefs.edit()
+                    .putBoolean(KEY_TEST_SEND_SUCCESS, false)
+                    // [修正 #6] アドレス変更時も設定保存フラグをリセット
+                    .putBoolean(KEY_SETTINGS_SAVED, false)
+                    .apply()
             }
         }
         editTextTo1.addTextChangedListener(addressWatcher)
         editTextTo2.addTextChangedListener(addressWatcher)
         editTextTo3.addTextChangedListener(addressWatcher)
-        // [追加] ここまで
+
+        // [修正 #6] 送信者名・電話番号変更時も設定保存フラグをリセット
+        // 変更後に「設定を保存」を押さずに監視開始できないようにする
+        val senderInfoWatcher = object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+            override fun afterTextChanged(s: Editable?) {
+                prefs.edit().putBoolean(KEY_SETTINGS_SAVED, false).apply()
+            }
+        }
+        editTextSenderName.addTextChangedListener(senderInfoWatcher)
+        editTextSenderPhone.addTextChangedListener(senderInfoWatcher)
 
         buttonSendInterval.setOnClickListener {
             val options = sendIntervalOptions.map { it.first }.toTypedArray()
@@ -117,8 +130,7 @@ class MainActivity : AppCompatActivity() {
                 .setItems(options) { _, which ->
                     selectedSendIntervalSec = sendIntervalOptions[which].second
                     updateSendIntervalText()
-
-                    // [追加] 送信時間変更 → 設定保存フラグをリセット
+                    // 送信時間変更 → 設定保存フラグをリセット
                     prefs.edit().putBoolean(KEY_SETTINGS_SAVED, false).apply()
                 }
                 .show()
@@ -140,7 +152,7 @@ class MainActivity : AppCompatActivity() {
                 .putString("sender_phone", editTextSenderPhone.text.toString())
                 .putLong("send_interval_sec", selectedSendIntervalSec)
                 .putLong("worker_threshold_sec", workerThresholdSec)
-                .putBoolean(KEY_SETTINGS_SAVED, true)  // [追加]
+                .putBoolean(KEY_SETTINGS_SAVED, true)
                 .apply()
 
             Toast.makeText(this, "設定を保存しました", Toast.LENGTH_SHORT).show()
@@ -148,7 +160,6 @@ class MainActivity : AppCompatActivity() {
 
         buttonStart.setOnClickListener {
 
-            // [追加] 1. 設定保存チェック
             if (!prefs.getBoolean(KEY_SETTINGS_SAVED, false)) {
                 AlertDialog.Builder(this)
                     .setTitle("設定が保存されていません")
@@ -158,10 +169,8 @@ class MainActivity : AppCompatActivity() {
                 return@setOnClickListener
             }
 
-            // [追加] 2. 送信先・件名・本文チェック
             if (!isMailInputValid()) return@setOnClickListener
 
-            // [追加] 3. テスト送信チェック
             if (!prefs.getBoolean(KEY_TEST_SEND_SUCCESS, false)) {
                 AlertDialog.Builder(this)
                     .setTitle("テスト送信が完了していません")
@@ -170,7 +179,6 @@ class MainActivity : AppCompatActivity() {
                     .show()
                 return@setOnClickListener
             }
-            // [追加] ここまで
 
             startMonitoring()
         }
@@ -186,7 +194,6 @@ class MainActivity : AppCompatActivity() {
 
         buttonTestSend.setOnClickListener {
 
-            // [追加] 送信先・件名・本文チェック
             if (!isMailInputValid()) return@setOnClickListener
 
             val toList = listOf(
@@ -199,11 +206,39 @@ class MainActivity : AppCompatActivity() {
             val phone = editTextSenderPhone.text.toString()
             val subject = MailTemplate.buildSubject(name)
             val body    = MailTemplate.buildBody(name, phone, "テスト")
-            EmailSender.sendMultiple(applicationContext, toList, subject, body)
 
-            // [追加] テスト送信成功フラグON
-            prefs.edit().putBoolean(KEY_TEST_SEND_SUCCESS, true).apply()
-            Toast.makeText(this, "テストメール送信中（複数）", Toast.LENGTH_SHORT).show()
+            // [修正 #2] テスト送信の成否が確定してからフラグをONにする
+            // 成功コールバックでフラグを立て、失敗時はエラートーストを表示する
+            // ※ 送信は非同期(Coroutine)のため、ボタン押下時点ではなく実際の送信完了時に判定
+            EmailSender.sendMultiple(
+                applicationContext,
+                toList,
+                subject,
+                body,
+                onAllSuccess = {
+                    // メインスレッドでUI操作を行う
+                    runOnUiThread {
+                        prefs.edit().putBoolean(KEY_TEST_SEND_SUCCESS, true).apply()
+                        Toast.makeText(
+                            this,
+                            "テストメール送信成功。監視を開始できます。",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
+                },
+                onAnyFailure = { failedTo, _ ->
+                    // [修正 #2] 失敗したアドレスをトーストで通知
+                    runOnUiThread {
+                        Toast.makeText(
+                            this,
+                            "送信失敗: $failedTo\nメールアドレスや接続を確認してください。",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
+                }
+            )
+
+            Toast.makeText(this, "テストメール送信中...", Toast.LENGTH_SHORT).show()
         }
 
         buttonSelect1.setOnClickListener { openContactPicker(REQUEST_CONTACT_1) }
@@ -211,7 +246,13 @@ class MainActivity : AppCompatActivity() {
         buttonSelect3.setOnClickListener { openContactPicker(REQUEST_CONTACT_3) }
     }
 
-    // [追加] 送信先・件名・本文の入力チェック
+    // [修正 #5] onResume で権限状態を毎回更新する
+    // 設定画面から戻ってきたとき「❌ 未設定」のままになるのを防ぐ
+    override fun onResume() {
+        super.onResume()
+        updatePermissionStatus()
+    }
+
     private fun isMailInputValid(): Boolean {
         val to1 = editTextTo1.text.toString()
         val to2 = editTextTo2.text.toString()
@@ -243,7 +284,6 @@ class MainActivity : AppCompatActivity() {
 
         return true
     }
-    // [追加] ここまで
 
     private fun updatePermissionStatus() {
         val batteryOk = PermissionHelper.isBatteryOptimizationIgnored(this)

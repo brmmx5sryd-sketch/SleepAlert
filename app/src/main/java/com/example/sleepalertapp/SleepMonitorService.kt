@@ -13,7 +13,6 @@ class SleepMonitorService : Service() {
     private var toList: List<String> = emptyList()
     private var isReceiverRegistered = false
 
-    // [追加] 送信間隔（秒）SharedPrefsから読む
     private var sendIntervalSec: Long = 60L
 
     private val screenReceiver = object : BroadcastReceiver() {
@@ -26,7 +25,7 @@ class SleepMonitorService : Service() {
                 Intent.ACTION_SCREEN_ON -> {
                     Log.d("SleepAlertService", "画面ON、アラームキャンセル")
                     updateLastActiveTime()
-                    cancelSleepAlarm() // [変更] 再送信アラームも含めてキャンセル
+                    cancelSleepAlarm()
                 }
             }
         }
@@ -34,6 +33,13 @@ class SleepMonitorService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+
+        // [前回修正 #4 対応] SharedPrefsにService生存フラグを書き込む
+        // CheckWorker が getRunningServices() の非推奨APIを使わずに判定できるようにする
+        getSharedPreferences("monitor", MODE_PRIVATE)
+            .edit()
+            .putBoolean("service_alive", true)
+            .apply()
 
         if (!isReceiverRegistered) {
             val filter = IntentFilter().apply {
@@ -59,9 +65,14 @@ class SleepMonitorService : Service() {
         }
 
         if (intent?.action == "SET_RESEND_ALARM") {
+            // [前回修正 #1 #2] SET_RESEND_ALARM 時も loadSettings() を先に呼ぶ
+            // これがないと sendIntervalSec がデフォルト60秒のままになり、
+            // toList も空のまま再送信アラームがセットされてしまう
+            loadSettings()
             setResendAlarm()
             return START_STICKY
         }
+
         loadSettings()
 
         val to1 = intent?.getStringExtra("to1")
@@ -115,22 +126,18 @@ class SleepMonitorService : Service() {
         }
 
         val now = System.currentTimeMillis()
-        val isTestMode = sendIntervalSec == 30 * 60L  // 30分テストか判定
+        val isTestMode = sendIntervalSec == 30 * 60L
 
-        // 警告アラームのキャンセル（古いものをクリア）
         cancelWarningAlarms(alarmManager)
 
         if (isTestMode) {
-            // 30分テスト：10分前に1回だけ
             setWarningAlarm(alarmManager, now, sendIntervalSec - 10 * 60L, 12, "30分後に緊急メールを送信します。\nスマートフォンを操作してください。")
         } else {
-            // 通常：6時間前・3時間前・30分前
             setWarningAlarm(alarmManager, now, sendIntervalSec - 6 * 60 * 60L,  10, "6時間後に緊急メールを送信します。\nスマートフォンを操作してください。")
             setWarningAlarm(alarmManager, now, sendIntervalSec - 3 * 60 * 60L,  11, "3時間後に緊急メールを送信します。\nスマートフォンを操作してください。")
             setWarningAlarm(alarmManager, now, sendIntervalSec - 30 * 60L,      12, "30分後に緊急メールを送信します。\nスマートフォンを操作してください。")
         }
 
-        // メール送信アラーム
         val sendIntent = Intent(this, SleepAlarmReceiver::class.java).apply {
             putStringArrayListExtra("toList", ArrayList(toList))
         }
@@ -154,10 +161,13 @@ class SleepMonitorService : Service() {
         requestCode: Int,
         message: String
     ) {
-        if (offsetSec <= 0) return  // 送信間隔より短い場合はスキップ
+        if (offsetSec <= 0) return
 
         val warningIntent = Intent(this, WarningReceiver::class.java).apply {
             putExtra("message", message)
+            // [前回修正 #3] requestCode を渡して通知IDに使えるようにする
+            // WarningReceiver 側でこの値を使って notify() する
+            putExtra("notification_id", requestCode)
         }
         val pendingIntent = PendingIntent.getBroadcast(
             this, requestCode, warningIntent,
@@ -191,7 +201,6 @@ class SleepMonitorService : Service() {
         scheduleAlarms()
     }
 
-    // [追加] exactAlarm権限がない場合に設定画面へ誘導する通知を出す
     private fun notifyExactAlarmPermission() {
         val channelId = "alarm_permission_channel"
         val notificationManager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
@@ -220,14 +229,11 @@ class SleepMonitorService : Service() {
         notificationManager.notify(200, notification)
     }
 
-    // [追加] ここまで
     private fun cancelSleepAlarm() {
         val alarmManager = getSystemService(ALARM_SERVICE) as AlarmManager
 
-        // 警告アラーム（3つ）キャンセル
         cancelWarningAlarms(alarmManager)
 
-        // 送信アラームキャンセル
         val sendPendingIntent = PendingIntent.getBroadcast(
             this, 2, Intent(this, SleepAlarmReceiver::class.java),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
@@ -242,13 +248,11 @@ class SleepMonitorService : Service() {
         prefs.edit().putLong("last_active", System.currentTimeMillis()).apply()
     }
 
-    // [追加] 送信時刻を記録
     fun updateLastSentTime() {
         val prefs = getSharedPreferences("monitor", MODE_PRIVATE)
         prefs.edit().putLong("last_sent", System.currentTimeMillis()).apply()
         Log.d("SleepAlertService", "last_sent更新")
     }
-    // [追加] ここまで
 
     private fun saveSettings() {
         val prefs = getSharedPreferences("monitor", MODE_PRIVATE)
@@ -269,15 +273,18 @@ class SleepMonitorService : Service() {
             prefs.getString("to3", "") ?: ""
         ).filter { it.isNotEmpty() }
 
-
-        // [追加] 送信間隔を読み込む
         sendIntervalSec = prefs.getLong("send_interval_sec", 60L)
         Log.d("Service", "送信間隔: ${sendIntervalSec}秒")
-        // [追加] ここまで
     }
 
     override fun onDestroy() {
         super.onDestroy()
+
+        // [前回修正 #4 対応] Service が終了したらフラグを落とす
+        getSharedPreferences("monitor", MODE_PRIVATE)
+            .edit()
+            .putBoolean("service_alive", false)
+            .apply()
 
         if (isReceiverRegistered) {
             try {
