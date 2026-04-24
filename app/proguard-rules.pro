@@ -19,3 +19,18 @@
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
+
+# [追加] JavaMail (Jakarta Mail) の動作に必要なクラスを保護
+-keep class javax.mail.** { *; }
+-keep class com.sun.mail.** { *; }
+-keep class jakarta.mail.** { *; }
+-keep class com.sun.activation.** { *; }
+
+# 警告が出てもビルドを止めない設定
+-dontwarn javax.mail.**
+-dontwarn com.sun.mail.**
+-dontwarn jakarta.mail.**
+-dontwarn com.sun.activation.**
+
+# 実行時のリフレクション（内部的な呼び出し）を許可
+-keepattributes Signature, *Annotation*, EnclosingMethod, InnerClasses

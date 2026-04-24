@@ -20,8 +20,8 @@ object EmailSender {
         onSuccess: (() -> Unit)? = null,
         onFailure: ((Exception) -> Unit)? = null
     ) {
-        val username = "ana05224@gmail.com"
-        val password = "cuznecjtebqrnhie"  // アプリパスワード
+        val username = BuildConfig.GMAIL_USER
+        val password = BuildConfig.GMAIL_PASS
 
         val props = Properties().apply {
             put("mail.smtp.auth", "true")
