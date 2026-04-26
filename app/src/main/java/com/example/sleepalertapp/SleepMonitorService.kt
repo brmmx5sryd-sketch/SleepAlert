@@ -12,8 +12,11 @@ class SleepMonitorService : Service() {
 
     private var toList: List<String> = emptyList()
     private var isReceiverRegistered = false
-
     private var sendIntervalSec: Long = 60L
+
+    // [追加] BatteryReceiver のフィールド
+    private var isBatteryReceiverRegistered = false
+    private val batteryReceiver = BatteryReceiver()
 
     private val screenReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -41,6 +44,7 @@ class SleepMonitorService : Service() {
             .putBoolean("service_alive", true)
             .apply()
 
+        // 画面ON/OFF 監視レシーバー登録
         if (!isReceiverRegistered) {
             val filter = IntentFilter().apply {
                 addAction(Intent.ACTION_SCREEN_OFF)
@@ -54,6 +58,16 @@ class SleepMonitorService : Service() {
             }
             isReceiverRegistered = true
         }
+
+        // [追加] BatteryReceiver を登録
+        // ACTION_BATTERY_CHANGED は動的登録のみ有効（AndroidManifest への記載は不要）
+        // Serviceが生きている間だけバッテリー監視を行う
+        if (!isBatteryReceiverRegistered) {
+            val batteryFilter = IntentFilter(Intent.ACTION_BATTERY_CHANGED)
+            registerReceiver(batteryReceiver, batteryFilter)
+            isBatteryReceiverRegistered = true
+            Log.d("SleepMonitorService", "BatteryReceiver登録完了")
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -66,8 +80,6 @@ class SleepMonitorService : Service() {
 
         if (intent?.action == "SET_RESEND_ALARM") {
             // [前回修正 #1 #2] SET_RESEND_ALARM 時も loadSettings() を先に呼ぶ
-            // これがないと sendIntervalSec がデフォルト60秒のままになり、
-            // toList も空のまま再送信アラームがセットされてしまう
             loadSettings()
             setResendAlarm()
             return START_STICKY
@@ -166,7 +178,6 @@ class SleepMonitorService : Service() {
         val warningIntent = Intent(this, WarningReceiver::class.java).apply {
             putExtra("message", message)
             // [前回修正 #3] requestCode を渡して通知IDに使えるようにする
-            // WarningReceiver 側でこの値を使って notify() する
             putExtra("notification_id", requestCode)
         }
         val pendingIntent = PendingIntent.getBroadcast(
@@ -286,14 +297,28 @@ class SleepMonitorService : Service() {
             .putBoolean("service_alive", false)
             .apply()
 
+        // [追加] BatteryReceiver を解除
+        // Service終了と同時にバッテリー監視も停止する
+        if (isBatteryReceiverRegistered) {
+            try {
+                unregisterReceiver(batteryReceiver)
+            } catch (e: Exception) {
+                Log.w("SleepMonitorService", "BatteryReceiver unregister失敗", e)
+            }
+            isBatteryReceiverRegistered = false
+            Log.d("SleepMonitorService", "BatteryReceiver解除完了")
+        }
+
+        // 画面ON/OFF レシーバー解除
         if (isReceiverRegistered) {
             try {
                 unregisterReceiver(screenReceiver)
             } catch (e: Exception) {
-                Log.w("SleepMonitorService", "unregisterReceiver failed", e)
+                Log.w("SleepMonitorService", "screenReceiver unregister失敗", e)
             }
             isReceiverRegistered = false
         }
+
         cancelSleepAlarm()
     }
 
