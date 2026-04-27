@@ -20,7 +20,7 @@ class BatteryReceiver : BroadcastReceiver() {
 
         val prefs = context.getSharedPreferences("monitor", Context.MODE_PRIVATE)
 
-        if (percent > 60) {
+        if (percent > 5) {
             // 5%超えたらバッテリー低下送信フラグをリセット
             if (prefs.getBoolean("battery_low_sent", false)) {
                 prefs.edit().putBoolean("battery_low_sent", false).apply()
