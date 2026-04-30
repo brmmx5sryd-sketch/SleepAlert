@@ -1,7 +1,6 @@
 //CheckWorker.kt
 package com.example.sleepalertapp
 
-import android.app.ActivityManager
 import android.content.Context
 import android.util.Log
 import androidx.work.Worker
@@ -10,32 +9,32 @@ import androidx.work.WorkerParameters
 class CheckWorker(context: Context, params: WorkerParameters) : Worker(context, params) {
 
     override fun doWork(): Result {
-        Log.d("CheckWorker", "Workerが起動しました")
+        Log.d("CheckWorker", "Workerが起動しました")  // 15分ごと → 常に出力（数時間に1回相当）
 
         val prefs = applicationContext.getSharedPreferences("monitor", Context.MODE_PRIVATE)
         val now = System.currentTimeMillis()
 
         val serviceAlive = isServiceRunning()
-        Log.d("CheckWorker", "Service生存: $serviceAlive")
+        Log.d("CheckWorker", "Service生存: $serviceAlive")  // 15分ごと → 常に出力
 
         if (serviceAlive) {
-            Log.d("CheckWorker", "Service生存中のため送信しない")
+            Log.d("CheckWorker", "Service生存中のため送信しない")  // 15分ごと → 常に出力
             return Result.success()
         }
 
         val lastActive = prefs.getLong("last_active", 0L)
         if (lastActive == 0L) {
-            Log.d("CheckWorker", "lastActive未設定のためスキップ")
+            Log.d("CheckWorker", "lastActive未設定のためスキップ")  // 異常系 → 常に出力
             return Result.success()
         }
 
         val workerThresholdSec = prefs.getLong("worker_threshold_sec", 25 * 60 * 60L)
         val diff = now - lastActive
 
-        Log.d("CheckWorker", "経過: ${diff/1000/60}分 / 閾値: ${workerThresholdSec/60}分")
+        Log.d("CheckWorker", "経過: ${diff/1000/60}分 / 閾値: ${workerThresholdSec/60}分")  // 15分ごと → 常に出力
 
         if (diff > workerThresholdSec * 1000L) {
-            Log.d("CheckWorker", "閾値超過！メール送信します")
+            Log.d("CheckWorker", "閾値超過！メール送信します")  // 重要イベント → 常に出力
 
             val toList = prefs.getStringSet("toList", emptySet())?.toList() ?: emptyList()
 
@@ -50,18 +49,15 @@ class CheckWorker(context: Context, params: WorkerParameters) : Worker(context, 
             val subject = MailTemplate.buildSubject(name)
             val body    = MailTemplate.buildBody(name, phone, sleepLabel)
 
-            Log.d("CheckWorker", "送信先: $toList")
+            AppLog.d("CheckWorker", "送信先: $toList")  // 宛先情報含むため → ENABLED=false で抑制
             EmailSender.sendMultiple(applicationContext, toList, subject, body)
         } else {
-            Log.d("CheckWorker", "閾値未満。送信なし")
+            Log.d("CheckWorker", "閾値未満。送信なし")  // 15分ごと → 常に出力
         }
 
         return Result.success()
     }
 
-    // [前回修正 #4 対応] getRunningServices() の非推奨API を廃止
-    // SleepMonitorService の onCreate / onDestroy で書き込む
-    // SharedPrefs の "service_alive" フラグを参照する方式に変更
     private fun isServiceRunning(): Boolean {
         return applicationContext
             .getSharedPreferences("monitor", Context.MODE_PRIVATE)

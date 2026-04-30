@@ -5,7 +5,7 @@ object MailTemplate {
 
     // [デバッグ用] 警告通知と同時にメールも送信する
     // リリース時はこの1行をコメントアウトする
-    const val DEBUG_SEND_ON_WARNING = true
+    const val DEBUG_SEND_ON_WARNING = false
 
     fun buildSubject(name: String): String {
         return "【緊急】【自動送信】${name}さんの安否を確認してください"

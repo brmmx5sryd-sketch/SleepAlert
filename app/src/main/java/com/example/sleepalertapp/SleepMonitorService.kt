@@ -14,7 +14,6 @@ class SleepMonitorService : Service() {
     private var isReceiverRegistered = false
     private var sendIntervalSec: Long = 60L
 
-    // [追加] BatteryReceiver のフィールド
     private var isBatteryReceiverRegistered = false
     private val batteryReceiver = BatteryReceiver()
 
@@ -37,20 +36,16 @@ class SleepMonitorService : Service() {
     override fun onCreate() {
         super.onCreate()
 
-        // [前回修正 #4 対応] SharedPrefsにService生存フラグを書き込む
-        // CheckWorker が getRunningServices() の非推奨APIを使わずに判定できるようにする
         getSharedPreferences("monitor", MODE_PRIVATE)
             .edit()
             .putBoolean("service_alive", true)
             .apply()
 
-        // 画面ON/OFF 監視レシーバー登録
         if (!isReceiverRegistered) {
             val filter = IntentFilter().apply {
                 addAction(Intent.ACTION_SCREEN_OFF)
                 addAction(Intent.ACTION_SCREEN_ON)
             }
-
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 registerReceiver(screenReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
             } else {
@@ -59,9 +54,6 @@ class SleepMonitorService : Service() {
             isReceiverRegistered = true
         }
 
-        // [追加] BatteryReceiver を登録
-        // ACTION_BATTERY_CHANGED は動的登録のみ有効（AndroidManifest への記載は不要）
-        // Serviceが生きている間だけバッテリー監視を行う
         if (!isBatteryReceiverRegistered) {
             val batteryFilter = IntentFilter(Intent.ACTION_BATTERY_CHANGED)
             registerReceiver(batteryReceiver, batteryFilter)
@@ -71,7 +63,7 @@ class SleepMonitorService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        Log.d("Service", "監視中")
+        AppLog.d("Service", "監視中")
 
         if (intent?.action == "STOP_MONITORING") {
             stopMonitoring()
@@ -79,7 +71,6 @@ class SleepMonitorService : Service() {
         }
 
         if (intent?.action == "SET_RESEND_ALARM") {
-            // [前回修正 #1 #2] SET_RESEND_ALARM 時も loadSettings() を先に呼ぶ
             loadSettings()
             setResendAlarm()
             return START_STICKY
@@ -103,7 +94,7 @@ class SleepMonitorService : Service() {
             }
         }
 
-        Log.d("Service", "toList=$toList")
+        AppLog.d("Service", "toList=$toList")
 
         updateLastActiveTime()
         saveSettings()
@@ -122,7 +113,7 @@ class SleepMonitorService : Service() {
         return Notification.Builder(this, channelId)
             .setContentTitle("スリープ監視中")
             .setContentText("端末がスリープになるとメールを送信します")
-            .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
+            .setSmallIcon(R.drawable.ic_monitoring_handshake_on)  // 通知バーアイコン（監視中）
             .build()
     }
 
@@ -177,7 +168,6 @@ class SleepMonitorService : Service() {
 
         val warningIntent = Intent(this, WarningReceiver::class.java).apply {
             putExtra("message", message)
-            // [前回修正 #3] requestCode を渡して通知IDに使えるようにする
             putExtra("notification_id", requestCode)
         }
         val pendingIntent = PendingIntent.getBroadcast(
@@ -203,22 +193,15 @@ class SleepMonitorService : Service() {
     }
 
     @SuppressLint("ScheduleExactAlarm")
-    private fun setSleepAlarm() {
-        scheduleAlarms()
-    }
+    private fun setSleepAlarm() { scheduleAlarms() }
 
     @SuppressLint("ScheduleExactAlarm")
-    fun setResendAlarm() {
-        scheduleAlarms()
-    }
+    fun setResendAlarm() { scheduleAlarms() }
 
     private fun notifyExactAlarmPermission() {
         val channelId = "alarm_permission_channel"
         val notificationManager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
-
-        val channel = NotificationChannel(
-            channelId, "権限通知", NotificationManager.IMPORTANCE_HIGH
-        )
+        val channel = NotificationChannel(channelId, "権限通知", NotificationManager.IMPORTANCE_HIGH)
         notificationManager.createNotificationChannel(channel)
 
         val settingsIntent = Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM).apply {
@@ -228,7 +211,6 @@ class SleepMonitorService : Service() {
             this, 0, settingsIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-
         val notification = Notification.Builder(this, channelId)
             .setContentTitle("権限が必要です")
             .setContentText("タップして「正確なアラームの設定」を許可してください")
@@ -242,15 +224,12 @@ class SleepMonitorService : Service() {
 
     private fun cancelSleepAlarm() {
         val alarmManager = getSystemService(ALARM_SERVICE) as AlarmManager
-
         cancelWarningAlarms(alarmManager)
-
         val sendPendingIntent = PendingIntent.getBroadcast(
             this, 2, Intent(this, SleepAlarmReceiver::class.java),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         alarmManager.cancel(sendPendingIntent)
-
         Log.d("SleepAlertService", "全アラームキャンセル")
     }
 
@@ -277,28 +256,23 @@ class SleepMonitorService : Service() {
 
     private fun loadSettings() {
         val prefs = getSharedPreferences("monitor", MODE_PRIVATE)
-
         toList = listOf(
             prefs.getString("to1", "") ?: "",
             prefs.getString("to2", "") ?: "",
             prefs.getString("to3", "") ?: ""
         ).filter { it.isNotEmpty() }
-
         sendIntervalSec = prefs.getLong("send_interval_sec", 60L)
-        Log.d("Service", "送信間隔: ${sendIntervalSec}秒")
+        AppLog.d("Service", "送信間隔: ${sendIntervalSec}秒")
     }
 
     override fun onDestroy() {
         super.onDestroy()
 
-        // [前回修正 #4 対応] Service が終了したらフラグを落とす
         getSharedPreferences("monitor", MODE_PRIVATE)
             .edit()
             .putBoolean("service_alive", false)
             .apply()
 
-        // [追加] BatteryReceiver を解除
-        // Service終了と同時にバッテリー監視も停止する
         if (isBatteryReceiverRegistered) {
             try {
                 unregisterReceiver(batteryReceiver)
@@ -309,7 +283,6 @@ class SleepMonitorService : Service() {
             Log.d("SleepMonitorService", "BatteryReceiver解除完了")
         }
 
-        // 画面ON/OFF レシーバー解除
         if (isReceiverRegistered) {
             try {
                 unregisterReceiver(screenReceiver)

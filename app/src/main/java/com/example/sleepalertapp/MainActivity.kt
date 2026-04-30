@@ -1,6 +1,7 @@
 //MainActivity.kt
 package com.example.sleepalertapp
 
+import android.content.ComponentName
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Bundle
@@ -95,14 +96,12 @@ class MainActivity : AppCompatActivity() {
         updateSendIntervalText()
         updatePermissionStatus()
 
-        // メールアドレス変更 → テスト送信フラグ・設定保存フラグをリセット
         val addressWatcher = object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
             override fun afterTextChanged(s: Editable?) {
                 prefs.edit()
                     .putBoolean(KEY_TEST_SEND_SUCCESS, false)
-                    // [修正 #6] アドレス変更時も設定保存フラグをリセット
                     .putBoolean(KEY_SETTINGS_SAVED, false)
                     .apply()
             }
@@ -111,8 +110,6 @@ class MainActivity : AppCompatActivity() {
         editTextTo2.addTextChangedListener(addressWatcher)
         editTextTo3.addTextChangedListener(addressWatcher)
 
-        // [修正 #6] 送信者名・電話番号変更時も設定保存フラグをリセット
-        // 変更後に「設定を保存」を押さずに監視開始できないようにする
         val senderInfoWatcher = object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
@@ -130,7 +127,6 @@ class MainActivity : AppCompatActivity() {
                 .setItems(options) { _, which ->
                     selectedSendIntervalSec = sendIntervalOptions[which].second
                     updateSendIntervalText()
-                    // 送信時間変更 → 設定保存フラグをリセット
                     prefs.edit().putBoolean(KEY_SETTINGS_SAVED, false).apply()
                 }
                 .show()
@@ -138,7 +134,6 @@ class MainActivity : AppCompatActivity() {
 
         buttonSaveSettings.setOnClickListener {
             val workerThresholdSec = selectedSendIntervalSec + 60 * 60L
-
             prefs.edit()
                 .putString("to1", editTextTo1.text.toString())
                 .putString("to2", editTextTo2.text.toString())
@@ -154,12 +149,10 @@ class MainActivity : AppCompatActivity() {
                 .putLong("worker_threshold_sec", workerThresholdSec)
                 .putBoolean(KEY_SETTINGS_SAVED, true)
                 .apply()
-
             Toast.makeText(this, "設定を保存しました", Toast.LENGTH_SHORT).show()
         }
 
         buttonStart.setOnClickListener {
-
             if (!prefs.getBoolean(KEY_SETTINGS_SAVED, false)) {
                 AlertDialog.Builder(this)
                     .setTitle("設定が保存されていません")
@@ -181,6 +174,7 @@ class MainActivity : AppCompatActivity() {
             }
 
             startMonitoring()
+            setLauncherIcon(true)  // 監視中アイコンに切り替え
         }
 
         buttonStop.setOnClickListener {
@@ -190,10 +184,10 @@ class MainActivity : AppCompatActivity() {
             startService(intent)
             WorkManager.getInstance(this).cancelUniqueWork("check_worker")
             Toast.makeText(this, "監視を完全停止しました", Toast.LENGTH_SHORT).show()
+            setLauncherIcon(false)  // 停止中アイコンに切り替え
         }
 
         buttonTestSend.setOnClickListener {
-
             if (!isMailInputValid()) return@setOnClickListener
 
             val toList = listOf(
@@ -207,16 +201,12 @@ class MainActivity : AppCompatActivity() {
             val subject = MailTemplate.buildSubject(name)
             val body    = MailTemplate.buildBody(name, phone, "テスト")
 
-            // [修正 #2] テスト送信の成否が確定してからフラグをONにする
-            // 成功コールバックでフラグを立て、失敗時はエラートーストを表示する
-            // ※ 送信は非同期(Coroutine)のため、ボタン押下時点ではなく実際の送信完了時に判定
             EmailSender.sendMultiple(
                 applicationContext,
                 toList,
                 subject,
                 body,
                 onAllSuccess = {
-                    // メインスレッドでUI操作を行う
                     runOnUiThread {
                         prefs.edit().putBoolean(KEY_TEST_SEND_SUCCESS, true).apply()
                         Toast.makeText(
@@ -227,7 +217,6 @@ class MainActivity : AppCompatActivity() {
                     }
                 },
                 onAnyFailure = { failedTo, _ ->
-                    // [修正 #2] 失敗したアドレスをトーストで通知
                     runOnUiThread {
                         Toast.makeText(
                             this,
@@ -237,7 +226,6 @@ class MainActivity : AppCompatActivity() {
                     }
                 }
             )
-
             Toast.makeText(this, "テストメール送信中...", Toast.LENGTH_SHORT).show()
         }
 
@@ -246,11 +234,32 @@ class MainActivity : AppCompatActivity() {
         buttonSelect3.setOnClickListener { openContactPicker(REQUEST_CONTACT_3) }
     }
 
-    // [修正 #5] onResume で権限状態を毎回更新する
-    // 設定画面から戻ってきたとき「❌ 未設定」のままになるのを防ぐ
     override fun onResume() {
         super.onResume()
         updatePermissionStatus()
+    }
+
+    // ランチャーアイコンを切り替える
+    private fun setLauncherIcon(isMonitoring: Boolean) {
+        val pm = packageManager
+        val onAlias  = ComponentName(this, "com.example.sleepalertapp.MainActivityMonitoring")
+        val offAlias = ComponentName(this, "com.example.sleepalertapp.MainActivityDefault")
+
+        if (isMonitoring) {
+            pm.setComponentEnabledSetting(onAlias,
+                PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
+                PackageManager.DONT_KILL_APP)
+            pm.setComponentEnabledSetting(offAlias,
+                PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
+                PackageManager.DONT_KILL_APP)
+        } else {
+            pm.setComponentEnabledSetting(onAlias,
+                PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
+                PackageManager.DONT_KILL_APP)
+            pm.setComponentEnabledSetting(offAlias,
+                PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
+                PackageManager.DONT_KILL_APP)
+        }
     }
 
     private fun isMailInputValid(): Boolean {
@@ -266,7 +275,6 @@ class MainActivity : AppCompatActivity() {
                 .show()
             return false
         }
-
         if (editTextSenderName.text.isBlank()) {
             AlertDialog.Builder(this)
                 .setTitle("名前が入力されていません")
@@ -281,7 +289,6 @@ class MainActivity : AppCompatActivity() {
                 .setPositiveButton("OK", null).show()
             return false
         }
-
         return true
     }
 
@@ -289,18 +296,8 @@ class MainActivity : AppCompatActivity() {
         val batteryOk = PermissionHelper.isBatteryOptimizationIgnored(this)
         val alarmOk = PermissionHelper.isExactAlarmAllowed(this)
 
-        textViewBattery.text = if (batteryOk) {
-            "✅ [バッテリー] 設定済"
-        } else {
-            "❌ [バッテリー] 未設定"
-        }
-
-        textViewAlarm.text = if (alarmOk) {
-            "✅ [アラーム権限] 設定済"
-        } else {
-            "❌ [アラーム権限] 未設定"
-        }
-
+        textViewBattery.text = if (batteryOk) "✅ [バッテリー] 設定済" else "❌ [バッテリー] 未設定"
+        textViewAlarm.text   = if (alarmOk)   "✅ [アラーム権限] 設定済" else "❌ [アラーム権限] 未設定"
         textViewBackground.text = "⚠️ [バックグラウンド] アプリ設定で「制限なし」を確認してください"
     }
 
@@ -320,10 +317,6 @@ class MainActivity : AppCompatActivity() {
         Log.d("StartConfig", "【Worker】")
         Log.d("StartConfig", "  送信閾値            : ${workerThresholdSec}秒 (${workerThresholdSec / 3600}時間${(workerThresholdSec % 3600) / 60}分)")
         Log.d("StartConfig", "  監視サイクル        : 15分ごと")
-        Log.d("StartConfig", "【メール送信先】")
-        toList.forEachIndexed { index, email ->
-            Log.d("StartConfig", "  宛先${index + 1}: $email")
-        }
         Log.d("StartConfig", "========================")
 
         val intent = Intent(this, SleepMonitorService::class.java).apply {

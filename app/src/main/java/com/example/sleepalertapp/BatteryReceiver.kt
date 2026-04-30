@@ -16,7 +16,7 @@ class BatteryReceiver : BroadcastReceiver() {
         if (level < 0 || scale <= 0) return
 
         val percent = (level * 100) / scale
-        Log.d("BatteryReceiver", "バッテリー残量: $percent%")
+        AppLog.d("BatteryReceiver", "バッテリー残量: $percent%")  // 頻繁に発火 → ENABLED=false で抑制
 
         val prefs = context.getSharedPreferences("monitor", Context.MODE_PRIVATE)
 
@@ -24,14 +24,14 @@ class BatteryReceiver : BroadcastReceiver() {
             // 5%超えたらバッテリー低下送信フラグをリセット
             if (prefs.getBoolean("battery_low_sent", false)) {
                 prefs.edit().putBoolean("battery_low_sent", false).apply()
-                Log.d("BatteryReceiver", "バッテリー低下送信フラグをリセット")
+                Log.d("BatteryReceiver", "バッテリー低下送信フラグをリセット")  // イベント発生時のみ → 常に出力
             }
         } else {
             // 5%以下になった時点で送信
 
             // 送信済みフラグが立っていればスキップ
             if (prefs.getBoolean("battery_low_sent", false)) {
-                Log.d("BatteryReceiver", "送信済みのためスキップ")
+                AppLog.d("BatteryReceiver", "送信済みのためスキップ")  // 5%以下の間ずっと発火 → ENABLED=false で抑制
                 return
             }
 
@@ -40,7 +40,7 @@ class BatteryReceiver : BroadcastReceiver() {
             val phone = prefs.getString("sender_phone", "") ?: ""
 
             if (toList.isEmpty() || name.isBlank()) {
-                Log.w("BatteryReceiver", "送信先または名前が未設定のためスキップ")
+                Log.w("BatteryReceiver", "送信先または名前が未設定のためスキップ")  // 異常系 → 常に出力
                 return
             }
 
@@ -57,7 +57,7 @@ class BatteryReceiver : BroadcastReceiver() {
             val subject = MailTemplate.buildSubject(name)
             val body = MailTemplate.buildBody(name, phone, sleepLabel) + "\nバッテリー残量５％以下"
 
-            Log.d("BatteryReceiver", "バッテリー低下メール送信開始: $toList")
+            Log.d("BatteryReceiver", "バッテリー低下メール送信開始: $toList")  // 重要イベント → 常に出力
             EmailSender.sendMultiple(context, toList, subject, body)
 
             // バッテリー低下送信フラグをON（5%超過で復帰するまで再送しない）

@@ -2,47 +2,62 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- メール送信用 -->
     <uses-permission android:name="android.permission.INTERNET" />
-
-    <!-- フォアグラウンドサービス用 -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
-
-    <!-- スリープ中の保持用 -->
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
-
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
-
-    <!--　boot対応 -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
     <uses-permission android:name="android.permission.READ_CONTACTS"/>
-
 
     <application
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
-        android:icon="@mipmap/ic_launcher"
+        android:icon="@mipmap/ic_monitoring_off"
         android:label="@string/app_name"
-        android:roundIcon="@mipmap/ic_launcher_round"
+        android:roundIcon="@mipmap/ic_monitoring_off"
         android:supportsRtl="true"
         android:theme="@style/Theme.SleepAlertApp"
         tools:targetApi="31">
 
-        <!-- メインアクティビティ -->
+        <!-- メインアクティビティ（直接起動させないためenabledをfalseに） -->
         <activity
             android:name=".MainActivity"
-            android:exported="true"
+            android:exported="false"
+            android:enabled="false"
             android:windowSoftInputMode="adjustResize"
             android:theme="@style/Theme.SleepAlertApp">
+        </activity>
+
+        <!-- 監視停止中のランチャーアイコン（デフォルト） -->
+        <activity-alias
+            android:name=".MainActivityDefault"
+            android:targetActivity=".MainActivity"
+            android:enabled="true"
+            android:exported="true"
+            android:icon="@mipmap/ic_monitoring_off"
+            android:roundIcon="@mipmap/ic_monitoring_off">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-        </activity>
+        </activity-alias>
+
+        <!-- 監視中のランチャーアイコン -->
+        <activity-alias
+            android:name=".MainActivityMonitoring"
+            android:targetActivity=".MainActivity"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_monitoring_on"
+            android:roundIcon="@mipmap/ic_monitoring_on">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
 
         <!-- スリープ監視用のフォアグラウンドサービス -->
         <service
@@ -58,7 +73,6 @@
             android:name=".WarningReceiver"
             android:exported="false" />
 
-        <!-- 追加 -->
         <receiver
             android:name=".BootReceiver"
             android:exported="true">
