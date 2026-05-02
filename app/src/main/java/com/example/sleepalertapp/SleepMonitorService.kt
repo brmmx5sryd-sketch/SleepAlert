@@ -134,7 +134,7 @@ class SleepMonitorService : Service() {
         cancelWarningAlarms(alarmManager)
 
         if (isTestMode) {
-            setWarningAlarm(alarmManager, now, sendIntervalSec - 10 * 60L, 12, "30分後に緊急メールを送信します。\nスマートフォンを操作してください。")
+            setWarningAlarm(alarmManager, now, sendIntervalSec - 10 * 60L, 12, "10分後に緊急メールを送信します。\nスマートフォンを操作してください。")
         } else {
             setWarningAlarm(alarmManager, now, sendIntervalSec - 6 * 60 * 60L,  10, "6時間後に緊急メールを送信します。\nスマートフォンを操作してください。")
             setWarningAlarm(alarmManager, now, sendIntervalSec - 3 * 60 * 60L,  11, "3時間後に緊急メールを送信します。\nスマートフォンを操作してください。")
