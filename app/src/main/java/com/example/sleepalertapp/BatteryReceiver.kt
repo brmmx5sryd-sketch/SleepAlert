@@ -36,7 +36,7 @@ class BatteryReceiver : BroadcastReceiver() {
             // 20%以下：未再生の場合のみ警告音を鳴らす
             if (!prefs.getBoolean("battery_warning_played", false)) {
                 Log.d("BatteryReceiver", "バッテリー20%以下 警告音再生開始")
-                playVoiceRepeat(context, R.raw.batterywarning, repeatCount = 3, intervalMs = 3000L)
+                playVoiceRepeat(context, R.raw.batterywarning, repeatCount = 1, intervalMs = 0L)
                 prefs.edit().putBoolean("battery_warning_played", true).apply()
             }
         }

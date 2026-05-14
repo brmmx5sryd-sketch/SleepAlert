@@ -25,10 +25,10 @@ class WarningReceiver : BroadcastReceiver() {
         // notificationId に対応する音声ファイルを選択
         // 10: 6時間前 / 11: 3時間前 / 12: 30分前
         val soundResId = when (notificationId) {
-            10   -> R.raw.warnigvoice6h
-            11   -> R.raw.warnigvoice3h
-            12   -> R.raw.warnigvoice30min
-            else -> R.raw.warnigvoice30min
+            10   -> R.raw.warningvoice6h
+            11   -> R.raw.warningvoice3h
+            12   -> R.raw.warningvoice30min
+            else -> R.raw.warningvoice30min
         }
 
         // 通知チャンネルは無音で作成（音声はMediaPlayerで3回再生するため）
@@ -54,7 +54,7 @@ class WarningReceiver : BroadcastReceiver() {
         notificationManager.notify(notificationId, notification)
 
         // 音声を3回再生（出力 → 3秒待機 → 出力 → 3秒待機 → 出力）
-        playVoiceRepeat(context, soundResId, repeatCount = 3, intervalMs = 3000L)
+        playVoiceRepeat(context, soundResId, repeatCount = 1, intervalMs = 0L)
 
         // [デバッグ用] 警告通知と同時にメールも送信する
         if (MailTemplate.DEBUG_SEND_ON_WARNING) {
