@@ -13,12 +13,12 @@ class BootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action == Intent.ACTION_BOOT_COMPLETED) {
 
-            // [修正 #1] 再起動直後に last_active を現在時刻でリセット
-            // これがないと CheckWorker が「長時間無操作」と誤判定し
-            // 起動直後にメールを誤送信してしまう
+            // last_activeは触らない、再起動時刻を別キーで保存
+            // CheckWorkerがlast_activeとlast_boot_timeの新しい方を基準にするため
+            // 再起動による空白時間が無操作時間として加算されるのを防ぐ
             context.getSharedPreferences("monitor", Context.MODE_PRIVATE)
                 .edit()
-                .putLong("last_active", System.currentTimeMillis())
+                .putLong("last_boot_time", System.currentTimeMillis())
                 .apply()
 
             // SharedPrefs から to1〜to3 / sender_name / sender_phone を

@@ -17,17 +17,44 @@ class SleepMonitorService : Service() {
     private var isBatteryReceiverRegistered = false
     private val batteryReceiver = BatteryReceiver()
 
+    private var screenOnTimeoutSec: Long = 180L
+    private var pendingActiveUpdate = false
+    private val handler = Handler(Looper.getMainLooper())
+    private val confirmUserActive = Runnable {
+        Log.d("SleepAlertService", "タイムアウト経過、last_active更新")
+        pendingActiveUpdate = false
+        updateLastActiveTime()
+        cancelSleepAlarm()
+    }
+
     private val screenReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             when (intent?.action) {
-                Intent.ACTION_SCREEN_OFF -> {
-                    Log.d("SleepAlertService", "画面OFF、アラーム設定")
-                    setSleepAlarm()
-                }
                 Intent.ACTION_SCREEN_ON -> {
-                    Log.d("SleepAlertService", "画面ON、アラームキャンセル")
-                    updateLastActiveTime()
-                    cancelSleepAlarm()
+                    Log.d("SleepAlertService", "画面ON、${screenOnTimeoutSec}秒タイマー開始")
+                    handler.removeCallbacks(confirmUserActive)
+                    pendingActiveUpdate = true
+                    handler.postDelayed(confirmUserActive, screenOnTimeoutSec * 1000L)
+                }
+                Intent.ACTION_SCREEN_OFF -> {
+                    handler.removeCallbacks(confirmUserActive)
+                    if (pendingActiveUpdate) {
+                        // 2パターン目：タイムアウト前にOFF → last_active未更新、アラーム継続
+                        pendingActiveUpdate = false
+                        Log.d("SleepAlertService", "タイムアウト前にOFF、アラーム継続")
+ //                       val lastActive = getSharedPreferences("monitor", MODE_PRIVATE).getLong("last_active", 0L)
+ //                       val formatted = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault())
+ //                           .format(java.util.Date(lastActive))
+ //                       Log.d("SleepAlertService", "last_active=$formatted")
+                    } else {
+                        // 1パターン目：タイムアウト済みOFF → 新last_activeでアラームセット
+                        Log.d("SleepAlertService", "タイムアウト済みOFF、アラームセット")
+//                        val lastActive = getSharedPreferences("monitor", MODE_PRIVATE).getLong("last_active", 0L)
+//                        val formatted = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault())
+//                            .format(java.util.Date(lastActive))
+//                        Log.d("SleepAlertService", "last_active=$formatted")
+                        setSleepAlarm()
+                    }
                 }
             }
         }
@@ -62,6 +89,8 @@ class SleepMonitorService : Service() {
         }
     }
 
+
+
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         AppLog.d("Service", "監視中")
 
@@ -82,7 +111,9 @@ class SleepMonitorService : Service() {
         val to2 = intent?.getStringExtra("to2")
         val to3 = intent?.getStringExtra("to3")
 
-        if (to1 != null || to2 != null || to3 != null) {
+        val isUserStart = to1 != null || to2 != null || to3 != null
+
+        if (isUserStart) {
             toList = listOf(to1 ?: "", to2 ?: "", to3 ?: "").filter { it.isNotEmpty() }
             val senderName  = intent?.getStringExtra("sender_name")
             val senderPhone = intent?.getStringExtra("sender_phone")
@@ -92,11 +123,14 @@ class SleepMonitorService : Service() {
                     .putString("sender_phone", senderPhone ?: "")
                     .apply()
             }
+            updateLastActiveTime()
+            Log.d("SleepMonitorService", "ユーザー操作による起動、last_active更新")
+        } else {
+            Log.d("SleepMonitorService", "再起動等による起動、last_active更新しない")
         }
 
         AppLog.d("Service", "toList=$toList")
 
-        updateLastActiveTime()
         saveSettings()
 
         val notification = createNotification()
@@ -113,7 +147,7 @@ class SleepMonitorService : Service() {
         return Notification.Builder(this, channelId)
             .setContentTitle("スリープ監視中")
             .setContentText("端末がスリープになるとメールを送信します")
-            .setSmallIcon(R.drawable.ic_monitoring_handshake_on)  // 通知バーアイコン（監視中）
+            .setSmallIcon(R.drawable.ic_monitoring_handshake_on)
             .build()
     }
 
@@ -262,10 +296,14 @@ class SleepMonitorService : Service() {
             prefs.getString("to3", "") ?: ""
         ).filter { it.isNotEmpty() }
         sendIntervalSec = prefs.getLong("send_interval_sec", 60L)
-        AppLog.d("Service", "送信間隔: ${sendIntervalSec}秒")
+        screenOnTimeoutSec = prefs.getLong("screen_on_timeout_sec", 180L)
+        AppLog.d("Service", "送信間隔: ${sendIntervalSec}秒、画面ONタイムアウト: ${screenOnTimeoutSec}秒")
     }
 
     override fun onDestroy() {
+        handler.removeCallbacks(confirmUserActive)
+        pendingActiveUpdate = false
+
         super.onDestroy()
 
         getSharedPreferences("monitor", MODE_PRIVATE)

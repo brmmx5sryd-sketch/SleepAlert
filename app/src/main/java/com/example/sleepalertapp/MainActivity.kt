@@ -36,6 +36,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var textViewBattery: TextView
     private lateinit var textViewBackground: TextView
     private lateinit var textViewAlarm: TextView
+    private lateinit var buttonScreenOnTimeout: Button
+    private lateinit var textViewScreenOnTimeout: TextView
 
     private val REQUEST_CONTACT_1 = 101
     private val REQUEST_CONTACT_2 = 102
@@ -50,6 +52,16 @@ class MainActivity : AppCompatActivity() {
     )
 
     private var selectedSendIntervalSec: Long = 24 * 60 * 60L
+
+    private val screenOnTimeoutOptions = listOf(
+        Pair("30秒", 30L),
+        Pair("1分", 60L),
+        Pair("3分", 180L),
+        Pair("5分", 300L),
+        Pair("10分", 600L)
+    )
+
+    private var selectedScreenOnTimeoutSec: Long = 180L
 
     companion object {
         const val KEY_SETTINGS_SAVED = "settings_saved"
@@ -84,6 +96,8 @@ class MainActivity : AppCompatActivity() {
         textViewBattery = findViewById(R.id.textViewBattery)
         textViewBackground = findViewById(R.id.textViewBackground)
         textViewAlarm = findViewById(R.id.textViewAlarm)
+        buttonScreenOnTimeout = findViewById(R.id.buttonScreenOnTimeout)
+        textViewScreenOnTimeout = findViewById(R.id.textViewScreenOnTimeout)
 
         val prefs = getSharedPreferences("monitor", MODE_PRIVATE)
         editTextTo1.setText(prefs.getString("to1", ""))
@@ -95,6 +109,8 @@ class MainActivity : AppCompatActivity() {
         selectedSendIntervalSec = prefs.getLong("send_interval_sec", 24 * 60 * 60L)
         updateSendIntervalText()
         updatePermissionStatus()
+        selectedScreenOnTimeoutSec = prefs.getLong("screen_on_timeout_sec", 180L)
+        updateScreenOnTimeoutText()
 
         val addressWatcher = object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
@@ -147,9 +163,22 @@ class MainActivity : AppCompatActivity() {
                 .putString("sender_phone", editTextSenderPhone.text.toString())
                 .putLong("send_interval_sec", selectedSendIntervalSec)
                 .putLong("worker_threshold_sec", workerThresholdSec)
+                .putLong("screen_on_timeout_sec", selectedScreenOnTimeoutSec)
                 .putBoolean(KEY_SETTINGS_SAVED, true)
                 .apply()
             Toast.makeText(this, "設定を保存しました", Toast.LENGTH_SHORT).show()
+        }
+
+        buttonScreenOnTimeout.setOnClickListener {
+            val options = screenOnTimeoutOptions.map { it.first }.toTypedArray()
+            AlertDialog.Builder(this)
+                .setTitle("画面ON判定タイムアウトを選択")
+                .setItems(options) { _, which ->
+                    selectedScreenOnTimeoutSec = screenOnTimeoutOptions[which].second
+                    updateScreenOnTimeoutText()
+                    prefs.edit().putBoolean(KEY_SETTINGS_SAVED, false).apply()
+                }
+                .show()
         }
 
         buttonStart.setOnClickListener {
@@ -175,6 +204,7 @@ class MainActivity : AppCompatActivity() {
 
             startMonitoring()
             setLauncherIcon(true)  // 監視中アイコンに切り替え
+            updateMonitoringButtons(true)
         }
 
         buttonStop.setOnClickListener {
@@ -185,6 +215,7 @@ class MainActivity : AppCompatActivity() {
             WorkManager.getInstance(this).cancelUniqueWork("check_worker")
             Toast.makeText(this, "監視を完全停止しました", Toast.LENGTH_SHORT).show()
             setLauncherIcon(false)  // 停止中アイコンに切り替え
+            updateMonitoringButtons(false)
         }
 
         buttonTestSend.setOnClickListener {
@@ -234,10 +265,15 @@ class MainActivity : AppCompatActivity() {
         buttonSelect3.setOnClickListener { openContactPicker(REQUEST_CONTACT_3) }
     }
 
+
     override fun onResume() {
         super.onResume()
         updatePermissionStatus()
+        val isAlive = getSharedPreferences("monitor", MODE_PRIVATE)
+            .getBoolean("service_alive", false)
+        updateMonitoringButtons(isAlive)
     }
+
 
     // ランチャーアイコンを切り替える
     private fun setLauncherIcon(isMonitoring: Boolean) {
@@ -425,4 +461,15 @@ class MainActivity : AppCompatActivity() {
             REQUEST_CONTACT_3 -> editTextTo3.setText(email)
         }
     }
+
+    private fun updateScreenOnTimeoutText() {
+        val label = screenOnTimeoutOptions.find { it.second == selectedScreenOnTimeoutSec }?.first ?: "未設定"
+        textViewScreenOnTimeout.text = label
+    }
+
+    private fun updateMonitoringButtons(isMonitoring: Boolean) {
+        buttonStart.isEnabled = !isMonitoring
+        buttonStop.isEnabled  = isMonitoring
+    }
+
 }

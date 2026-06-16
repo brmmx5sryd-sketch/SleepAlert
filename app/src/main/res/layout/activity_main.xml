@@ -114,6 +114,39 @@
                 android:gravity="center" />
         </LinearLayout>
 
+        <!-- 画面ONタイムアウト -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginTop="8dp">
+
+            <Button
+                android:id="@+id/buttonScreenOnTimeout"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="画面ON判定時間" />
+
+            <TextView
+                android:id="@+id/textViewScreenOnTimeout"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_gravity="center_vertical"
+                android:text="3分"
+                android:textSize="14sp"
+                android:gravity="center" />
+        </LinearLayout>
+
+        <!-- 画面ON判定の説明 -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="設定時間未満の画面点灯は操作したと判断しません"
+            android:textSize="12sp"
+            android:layout_marginTop="2dp"
+            android:layout_marginBottom="8dp" />
+
         <!-- 設定保存 -->
         <Button
             android:id="@+id/buttonSaveSettings"
@@ -122,29 +155,40 @@
             android:minHeight="48dp"
             android:text="設定を保存" />
 
-        <!-- 自動送信開始 -->
-        <Button
-            android:id="@+id/buttonStart"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:minHeight="48dp"
-            android:text="スリープ監視開始" />
-
-        <!-- 自動送信停止 -->
-        <Button
-            android:id="@+id/buttonStop"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:minHeight="48dp"
-            android:text="緊急送信停止" />
-
-        <!-- 手動送信 -->
+        <!-- テスト送信 -->
         <Button
             android:id="@+id/buttonTestSend"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:minHeight="48dp"
             android:text="テスト送信" />
+
+        <!-- 監視開始・停止（横並び） -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginTop="8dp">
+
+            <Button
+                android:id="@+id/buttonStart"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:minHeight="48dp"
+                android:layout_marginEnd="4dp"
+                android:text="監視開始" />
+
+            <Button
+                android:id="@+id/buttonStop"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:minHeight="48dp"
+                android:layout_marginStart="4dp"
+                android:text="監視停止" />
+
+        </LinearLayout>
 
         <!-- 権限状態表示 -->
         <TextView

@@ -9,38 +9,45 @@ import androidx.work.WorkerParameters
 class CheckWorker(context: Context, params: WorkerParameters) : Worker(context, params) {
 
     override fun doWork(): Result {
-        Log.d("CheckWorker", "Workerが起動しました")  // 15分ごと → 常に出力（数時間に1回相当）
+        Log.d("CheckWorker", "Workerが起動しました")
 
         val prefs = applicationContext.getSharedPreferences("monitor", Context.MODE_PRIVATE)
         val now = System.currentTimeMillis()
 
         val serviceAlive = isServiceRunning()
-        Log.d("CheckWorker", "Service生存: $serviceAlive")  // 15分ごと → 常に出力
+        Log.d("CheckWorker", "Service生存: $serviceAlive")
 
         if (serviceAlive) {
-            Log.d("CheckWorker", "Service生存中のため送信しない")  // 15分ごと → 常に出力
+            Log.d("CheckWorker", "Service生存中のため送信しない")
             return Result.success()
         }
 
-        val lastActive = prefs.getLong("last_active", 0L)
-        if (lastActive == 0L) {
-            Log.d("CheckWorker", "lastActive未設定のためスキップ")  // 異常系 → 常に出力
+        val lastActive   = prefs.getLong("last_active", 0L)
+        val lastBootTime = prefs.getLong("last_boot_time", 0L)
+
+        if (lastActive == 0L && lastBootTime == 0L) {
+            Log.d("CheckWorker", "lastActive未設定のためスキップ")
             return Result.success()
         }
 
+        // last_active・last_boot_timeのうち新しい方を基準にする
+        val baseline = maxOf(lastActive, lastBootTime)
         val workerThresholdSec = prefs.getLong("worker_threshold_sec", 25 * 60 * 60L)
-        val diff = now - lastActive
+        val diff = now - baseline
 
-        Log.d("CheckWorker", "経過: ${diff/1000/60}分 / 閾値: ${workerThresholdSec/60}分")  // 15分ごと → 常に出力
+        Log.d("CheckWorker", "経過: ${diff/1000/60}分 / 閾値: ${workerThresholdSec/60}分")
 
         if (diff > workerThresholdSec * 1000L) {
-            Log.d("CheckWorker", "閾値超過！メール送信します")  // 重要イベント → 常に出力
+            Log.d("CheckWorker", "閾値超過！メール送信します")
 
             val toList = prefs.getStringSet("toList", emptySet())?.toList() ?: emptyList()
 
             val name  = prefs.getString("sender_name", "") ?: ""
             val phone = prefs.getString("sender_phone", "") ?: ""
-            val sleepSec = (now - lastActive) / 1000
+
+            // メール本文のスリープ時間はlast_activeを基準にする
+            val sleepBaseline = if (lastActive > 0L) lastActive else lastBootTime
+            val sleepSec = (now - sleepBaseline) / 1000
             val sleepHours = sleepSec / 3600
             val sleepMinutes = (sleepSec % 3600) / 60
             val roundedMinutes = (sleepMinutes / 10) * 10
@@ -49,10 +56,10 @@ class CheckWorker(context: Context, params: WorkerParameters) : Worker(context, 
             val subject = MailTemplate.buildSubject(name)
             val body    = MailTemplate.buildBody(name, phone, sleepLabel)
 
-            AppLog.d("CheckWorker", "送信先: $toList")  // 宛先情報含むため → ENABLED=false で抑制
+            AppLog.d("CheckWorker", "送信先: $toList")
             EmailSender.sendMultiple(applicationContext, toList, subject, body)
         } else {
-            Log.d("CheckWorker", "閾値未満。送信なし")  // 15分ごと → 常に出力
+            Log.d("CheckWorker", "閾値未満。送信なし")
         }
 
         return Result.success()
