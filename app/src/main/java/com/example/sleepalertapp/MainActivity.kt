@@ -14,6 +14,7 @@ import java.util.concurrent.TimeUnit
 import android.provider.ContactsContract
 import android.Manifest
 import android.util.Log
+import android.provider.Settings
 import androidx.appcompat.app.AlertDialog
 import androidx.core.app.ActivityCompat
 
@@ -38,6 +39,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var textViewAlarm: TextView
     private lateinit var buttonScreenOnTimeout: Button
     private lateinit var textViewScreenOnTimeout: TextView
+    private lateinit var textViewAccessibility: TextView  // 追加
 
     private val REQUEST_CONTACT_1 = 101
     private val REQUEST_CONTACT_2 = 102
@@ -98,6 +100,12 @@ class MainActivity : AppCompatActivity() {
         textViewAlarm = findViewById(R.id.textViewAlarm)
         buttonScreenOnTimeout = findViewById(R.id.buttonScreenOnTimeout)
         textViewScreenOnTimeout = findViewById(R.id.textViewScreenOnTimeout)
+        textViewAccessibility = findViewById(R.id.textViewAccessibility)  // 追加
+
+        // タッチ検知テキストをタップで設定画面へ誘導
+        textViewAccessibility.setOnClickListener {
+            if (!isAccessibilityServiceEnabled()) checkAndRequestAccessibilityService()
+        }
 
         val prefs = getSharedPreferences("monitor", MODE_PRIVATE)
         editTextTo1.setText(prefs.getString("to1", ""))
@@ -111,6 +119,10 @@ class MainActivity : AppCompatActivity() {
         updatePermissionStatus()
         selectedScreenOnTimeoutSec = prefs.getLong("screen_on_timeout_sec", 180L)
         updateScreenOnTimeoutText()
+
+        if (!isAccessibilityServiceEnabled()) {
+            checkAndRequestAccessibilityService()
+        }
 
         val addressWatcher = object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
@@ -203,7 +215,7 @@ class MainActivity : AppCompatActivity() {
             }
 
             startMonitoring()
-            setLauncherIcon(true)  // 監視中アイコンに切り替え
+            setLauncherIcon(true)
             updateMonitoringButtons(true)
         }
 
@@ -214,7 +226,7 @@ class MainActivity : AppCompatActivity() {
             startService(intent)
             WorkManager.getInstance(this).cancelUniqueWork("check_worker")
             Toast.makeText(this, "監視を完全停止しました", Toast.LENGTH_SHORT).show()
-            setLauncherIcon(false)  // 停止中アイコンに切り替え
+            setLauncherIcon(false)
             updateMonitoringButtons(false)
         }
 
@@ -265,7 +277,6 @@ class MainActivity : AppCompatActivity() {
         buttonSelect3.setOnClickListener { openContactPicker(REQUEST_CONTACT_3) }
     }
 
-
     override fun onResume() {
         super.onResume()
         updatePermissionStatus()
@@ -274,8 +285,6 @@ class MainActivity : AppCompatActivity() {
         updateMonitoringButtons(isAlive)
     }
 
-
-    // ランチャーアイコンを切り替える
     private fun setLauncherIcon(isMonitoring: Boolean) {
         val pm = packageManager
         val onAlias  = ComponentName(this, "com.example.sleepalertapp.MainActivityMonitoring")
@@ -328,13 +337,49 @@ class MainActivity : AppCompatActivity() {
         return true
     }
 
+    // updatePermissionStatus・isAccessibilityServiceEnabled・checkAndRequestAccessibilityService を差し替え
     private fun updatePermissionStatus() {
-        val batteryOk = PermissionHelper.isBatteryOptimizationIgnored(this)
-        val alarmOk = PermissionHelper.isExactAlarmAllowed(this)
+        val batteryOk       = PermissionHelper.isBatteryOptimizationIgnored(this)
+        val alarmOk         = PermissionHelper.isExactAlarmAllowed(this)
+        val accessibilityOk = isAccessibilityServiceEnabled()
 
-        textViewBattery.text = if (batteryOk) "✅ [バッテリー] 設定済" else "❌ [バッテリー] 未設定"
-        textViewAlarm.text   = if (alarmOk)   "✅ [アラーム権限] 設定済" else "❌ [アラーム権限] 未設定"
-        textViewBackground.text = "⚠️ [バックグラウンド] アプリ設定で「制限なし」を確認してください"
+        textViewBattery.text       = if (batteryOk)       "✅ [バッテリー] 設定済"              else "❌ [バッテリー] 未設定"
+        textViewAlarm.text         = if (alarmOk)         "✅ [アラーム権限] 設定済"            else "❌ [アラーム権限] 未設定"
+        textViewAccessibility.text = if (accessibilityOk) "✅ [タッチ検知] 設定済"              else "❌ [タッチ検知] 未設定（タップして設定）"
+        textViewBackground.text    = "⚠️ [バックグラウンド] アプリ設定で「制限なし」を確認してください"
+    }
+
+    private fun isAccessibilityServiceEnabled(): Boolean {
+        val shortName = "${packageName}/.UserInteractionAccessibilityService"
+        val fullName  = "${packageName}/${packageName}.UserInteractionAccessibilityService"
+
+        val enabled = Settings.Secure.getString(
+            contentResolver,
+            Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
+        ) ?: return false
+
+        return enabled.split(":").any {
+            it.equals(shortName, ignoreCase = true) || it.equals(fullName, ignoreCase = true)
+        }
+    }
+
+    private fun checkAndRequestAccessibilityService() {
+        if (isAccessibilityServiceEnabled()) return
+        AlertDialog.Builder(this)
+            .setTitle("追加設定のお願い")
+            .setMessage(
+                "画面タップを検知してスリープ判定を改善するため、\n" +
+                        "アクセシビリティサービスの有効化が必要です。\n\n" +
+                        "【手順】\n" +
+                        "1. 次の画面で「インストール済みのサービス」または\n" +
+                        "   「ダウンロードしたアプリ」を探す\n" +
+                        "2.「${getString(R.string.app_name)}」をタップしてONにする"
+            )
+            .setPositiveButton("設定を開く") { _, _ ->
+                startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+            }
+            .setNegativeButton("スキップ", null)
+            .show()
     }
 
     private fun startMonitoring() {
@@ -471,5 +516,4 @@ class MainActivity : AppCompatActivity() {
         buttonStart.isEnabled = !isMonitoring
         buttonStop.isEnabled  = isMonitoring
     }
-
 }

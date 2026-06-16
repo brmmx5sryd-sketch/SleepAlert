@@ -31,28 +31,22 @@ class SleepMonitorService : Service() {
         override fun onReceive(context: Context?, intent: Intent?) {
             when (intent?.action) {
                 Intent.ACTION_SCREEN_ON -> {
+                    UserInteractionAccessibilityService.isScreenOn = true  // 追加
                     Log.d("SleepAlertService", "画面ON、${screenOnTimeoutSec}秒タイマー開始")
                     handler.removeCallbacks(confirmUserActive)
                     pendingActiveUpdate = true
                     handler.postDelayed(confirmUserActive, screenOnTimeoutSec * 1000L)
                 }
                 Intent.ACTION_SCREEN_OFF -> {
+                    UserInteractionAccessibilityService.isScreenOn = false  // 追加
                     handler.removeCallbacks(confirmUserActive)
                     if (pendingActiveUpdate) {
                         // 2パターン目：タイムアウト前にOFF → last_active未更新、アラーム継続
                         pendingActiveUpdate = false
                         Log.d("SleepAlertService", "タイムアウト前にOFF、アラーム継続")
- //                       val lastActive = getSharedPreferences("monitor", MODE_PRIVATE).getLong("last_active", 0L)
- //                       val formatted = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault())
- //                           .format(java.util.Date(lastActive))
- //                       Log.d("SleepAlertService", "last_active=$formatted")
                     } else {
                         // 1パターン目：タイムアウト済みOFF → 新last_activeでアラームセット
                         Log.d("SleepAlertService", "タイムアウト済みOFF、アラームセット")
-//                        val lastActive = getSharedPreferences("monitor", MODE_PRIVATE).getLong("last_active", 0L)
-//                        val formatted = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault())
-//                            .format(java.util.Date(lastActive))
-//                        Log.d("SleepAlertService", "last_active=$formatted")
                         setSleepAlarm()
                     }
                 }
@@ -89,8 +83,6 @@ class SleepMonitorService : Service() {
         }
     }
 
-
-
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         AppLog.d("Service", "監視中")
 
@@ -102,6 +94,16 @@ class SleepMonitorService : Service() {
         if (intent?.action == "SET_RESEND_ALARM") {
             loadSettings()
             setResendAlarm()
+            return START_STICKY
+        }
+
+        // 追加：タッチ操作検知によるlast_active更新
+        if (intent?.action == "USER_INTERACTION_DETECTED") {
+            Log.d("SleepMonitorService", "タッチ操作検知 → last_active更新・アラームキャンセル")
+            handler.removeCallbacks(confirmUserActive)
+            pendingActiveUpdate = false
+            updateLastActiveTime()
+            cancelSleepAlarm()
             return START_STICKY
         }
 
