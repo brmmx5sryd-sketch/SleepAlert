@@ -115,6 +115,7 @@
         </LinearLayout>
 
         <!-- 画面ONタイムアウト -->
+        <!-- [screenOnTimeout UI: 復活時はコメント解除]
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -138,7 +139,7 @@
                 android:gravity="center" />
         </LinearLayout>
 
-        <!-- 画面ON判定の説明 -->
+
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -146,6 +147,8 @@
             android:textSize="12sp"
             android:layout_marginTop="2dp"
             android:layout_marginBottom="8dp" />
+
+        -->
 
         <!-- 設定保存 -->
         <Button

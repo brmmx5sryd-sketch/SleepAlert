@@ -31,23 +31,25 @@ class SleepMonitorService : Service() {
         override fun onReceive(context: Context?, intent: Intent?) {
             when (intent?.action) {
                 Intent.ACTION_SCREEN_ON -> {
-                    UserInteractionAccessibilityService.isScreenOn = true  // 追加
-                    Log.d("SleepAlertService", "画面ON、${screenOnTimeoutSec}秒タイマー開始")
-                    handler.removeCallbacks(confirmUserActive)
-                    pendingActiveUpdate = true
-                    handler.postDelayed(confirmUserActive, screenOnTimeoutSec * 1000L)
+                    UserInteractionAccessibilityService.isScreenOn = true
+                    // [修正] 画面ONでタップフラグをリセット
+                    pendingActiveUpdate = false
+                    Log.d("SleepAlertService", "画面ON、タップフラグリセット（false）")
+                    // [screenOnTimeout: 復活時はコメント解除し、上2行を削除]
+                    // handler.removeCallbacks(confirmUserActive)
+                    // handler.postDelayed(confirmUserActive, screenOnTimeoutSec * 1000L)
                 }
                 Intent.ACTION_SCREEN_OFF -> {
-                    UserInteractionAccessibilityService.isScreenOn = false  // 追加
+                    UserInteractionAccessibilityService.isScreenOn = false
                     handler.removeCallbacks(confirmUserActive)
+                    // [修正] タップフラグがtrueの場合のみlast_active更新・アラームリセット
                     if (pendingActiveUpdate) {
-                        // 2パターン目：タイムアウト前にOFF → last_active未更新、アラーム継続
                         pendingActiveUpdate = false
-                        Log.d("SleepAlertService", "タイムアウト前にOFF、アラーム継続")
-                    } else {
-                        // 1パターン目：タイムアウト済みOFF → 新last_activeでアラームセット
-                        Log.d("SleepAlertService", "タイムアウト済みOFF、アラームセット")
+                        updateLastActiveTime()
                         setSleepAlarm()
+                        Log.d("SleepAlertService", "画面OFF（タップあり）→ last_active更新・アラームリセット")
+                    } else {
+                        Log.d("SleepAlertService", "画面OFF（タップなし）→ last_active更新なし・アラーム継続")
                     }
                 }
             }
@@ -97,13 +99,12 @@ class SleepMonitorService : Service() {
             return START_STICKY
         }
 
-        // 追加：タッチ操作検知によるlast_active更新
+        // [修正] タッチ操作検知：タップフラグをtrueにセットするのみ
         if (intent?.action == "USER_INTERACTION_DETECTED") {
-            Log.d("SleepMonitorService", "タッチ操作検知 → last_active更新・アラームキャンセル")
-            handler.removeCallbacks(confirmUserActive)
-            pendingActiveUpdate = false
-            updateLastActiveTime()
-            cancelSleepAlarm()
+            if (!pendingActiveUpdate) {
+                pendingActiveUpdate = true
+                Log.d("SleepMonitorService", "タッチ検知 → タップフラグON（true）")
+            }
             return START_STICKY
         }
 
