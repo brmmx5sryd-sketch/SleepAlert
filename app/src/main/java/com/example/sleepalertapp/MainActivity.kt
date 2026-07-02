@@ -40,7 +40,7 @@ class MainActivity : AppCompatActivity() {
     // [screenOnTimeout UI: 復活時はコメント解除]
     //   private lateinit var buttonScreenOnTimeout: Button
     //   private lateinit var textViewScreenOnTimeout: TextView
-    private lateinit var textViewAccessibility: TextView  // 追加
+    private lateinit var textViewAccessibility: TextView
 
     private val REQUEST_CONTACT_1 = 101
     private val REQUEST_CONTACT_2 = 102
@@ -103,9 +103,8 @@ class MainActivity : AppCompatActivity() {
         // [screenOnTimeout UI]
         // buttonScreenOnTimeout = findViewById(R.id.buttonScreenOnTimeout)
         // textViewScreenOnTimeout = findViewById(R.id.textViewScreenOnTimeout)
-        textViewAccessibility = findViewById(R.id.textViewAccessibility)  // 追加
+        textViewAccessibility = findViewById(R.id.textViewAccessibility)
 
-        // タッチ検知テキストをタップで設定画面へ誘導
         textViewAccessibility.setOnClickListener {
             if (!isAccessibilityServiceEnabled()) checkAndRequestAccessibilityService()
         }
@@ -120,21 +119,26 @@ class MainActivity : AppCompatActivity() {
         selectedSendIntervalSec = prefs.getLong("send_interval_sec", 24 * 60 * 60L)
         updateSendIntervalText()
         updatePermissionStatus()
-        // selectedScreenOnTimeoutSec = prefs.getLong("screen_on_timeout_sec", 180L)
-        // updateScreenOnTimeoutText()
 
         if (!isAccessibilityServiceEnabled()) {
             checkAndRequestAccessibilityService()
         }
 
         val addressWatcher = object : TextWatcher {
-            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            private var before = ""
+
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {
+                before = s?.toString() ?: ""
+            }
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
             override fun afterTextChanged(s: Editable?) {
-                prefs.edit()
-                    .putBoolean(KEY_TEST_SEND_SUCCESS, false)
-                    .putBoolean(KEY_SETTINGS_SAVED, false)
-                    .apply()
+                val after = s?.toString() ?: ""
+                if (after != before) {
+                    prefs.edit()
+                        .putBoolean(KEY_TEST_SEND_SUCCESS, false)
+                        .putBoolean(KEY_SETTINGS_SAVED, false)
+                        .apply()
+                }
             }
         }
         editTextTo1.addTextChangedListener(addressWatcher)
@@ -142,10 +146,17 @@ class MainActivity : AppCompatActivity() {
         editTextTo3.addTextChangedListener(addressWatcher)
 
         val senderInfoWatcher = object : TextWatcher {
-            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            private var before = ""
+
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {
+                before = s?.toString() ?: ""
+            }
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
             override fun afterTextChanged(s: Editable?) {
-                prefs.edit().putBoolean(KEY_SETTINGS_SAVED, false).apply()
+                val after = s?.toString() ?: ""
+                if (after != before) {
+                    prefs.edit().putBoolean(KEY_SETTINGS_SAVED, false).apply()
+                }
             }
         }
         editTextSenderName.addTextChangedListener(senderInfoWatcher)
@@ -178,23 +189,23 @@ class MainActivity : AppCompatActivity() {
                 .putString("sender_phone", editTextSenderPhone.text.toString())
                 .putLong("send_interval_sec", selectedSendIntervalSec)
                 .putLong("worker_threshold_sec", workerThresholdSec)
-               // .putLong("screen_on_timeout_sec", selectedScreenOnTimeoutSec)
+                // .putLong("screen_on_timeout_sec", selectedScreenOnTimeoutSec)
                 .putBoolean(KEY_SETTINGS_SAVED, true)
                 .apply()
             Toast.makeText(this, "設定を保存しました", Toast.LENGTH_SHORT).show()
         }
 
-       // buttonScreenOnTimeout.setOnClickListener {
-       //     val options = screenOnTimeoutOptions.map { it.first }.toTypedArray()
-       //     AlertDialog.Builder(this)
-       //         .setTitle("画面ON判定タイムアウトを選択")
-       //         .setItems(options) { _, which ->
-       //             selectedScreenOnTimeoutSec = screenOnTimeoutOptions[which].second
-       //             updateScreenOnTimeoutText()
-       //             prefs.edit().putBoolean(KEY_SETTINGS_SAVED, false).apply()
-       //         }
-       //         .show()
-       // }
+        // buttonScreenOnTimeout.setOnClickListener {
+        //     val options = screenOnTimeoutOptions.map { it.first }.toTypedArray()
+        //     AlertDialog.Builder(this)
+        //         .setTitle("画面ON判定タイムアウトを選択")
+        //         .setItems(options) { _, which ->
+        //             selectedScreenOnTimeoutSec = screenOnTimeoutOptions[which].second
+        //             updateScreenOnTimeoutText()
+        //             prefs.edit().putBoolean(KEY_SETTINGS_SAVED, false).apply()
+        //         }
+        //         .show()
+        // }
 
         buttonStart.setOnClickListener {
             if (!prefs.getBoolean(KEY_SETTINGS_SAVED, false)) {
@@ -340,15 +351,14 @@ class MainActivity : AppCompatActivity() {
         return true
     }
 
-    // updatePermissionStatus・isAccessibilityServiceEnabled・checkAndRequestAccessibilityService を差し替え
     private fun updatePermissionStatus() {
         val batteryOk       = PermissionHelper.isBatteryOptimizationIgnored(this)
         val alarmOk         = PermissionHelper.isExactAlarmAllowed(this)
         val accessibilityOk = isAccessibilityServiceEnabled()
 
-        textViewBattery.text       = if (batteryOk)       "✅ [バッテリー] 設定済"              else "❌ [バッテリー] 未設定"
-        textViewAlarm.text         = if (alarmOk)         "✅ [アラーム権限] 設定済"            else "❌ [アラーム権限] 未設定"
-        textViewAccessibility.text = if (accessibilityOk) "✅ [タッチ検知] 設定済"              else "❌ [タッチ検知] 未設定（タップして設定）"
+        textViewBattery.text       = if (batteryOk)       "✅ [バッテリー] 設定済"           else "❌ [バッテリー] 未設定"
+        textViewAlarm.text         = if (alarmOk)         "✅ [アラーム権限] 設定済"         else "❌ [アラーム権限] 未設定"
+        textViewAccessibility.text = if (accessibilityOk) "✅ [タッチ検知] 設定済"           else "❌ [タッチ検知] 未設定（タップして設定）"
         textViewBackground.text    = "⚠️ [バックグラウンド] アプリ設定で「制限なし」を確認してください"
     }
 
@@ -503,6 +513,14 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun setEmail(requestCode: Int, email: String) {
+        val current = when (requestCode) {
+            REQUEST_CONTACT_1 -> editTextTo1.text.toString()
+            REQUEST_CONTACT_2 -> editTextTo2.text.toString()
+            REQUEST_CONTACT_3 -> editTextTo3.text.toString()
+            else -> ""
+        }
+        if (current == email) return
+
         when (requestCode) {
             REQUEST_CONTACT_1 -> editTextTo1.setText(email)
             REQUEST_CONTACT_2 -> editTextTo2.setText(email)
@@ -517,7 +535,18 @@ class MainActivity : AppCompatActivity() {
     // }
 
     private fun updateMonitoringButtons(isMonitoring: Boolean) {
-        buttonStart.isEnabled = !isMonitoring
-        buttonStop.isEnabled  = isMonitoring
+        buttonStart.isEnabled         = !isMonitoring
+        buttonStop.isEnabled          = isMonitoring
+        editTextTo1.isEnabled         = !isMonitoring
+        editTextTo2.isEnabled         = !isMonitoring
+        editTextTo3.isEnabled         = !isMonitoring
+        editTextSenderName.isEnabled  = !isMonitoring
+        editTextSenderPhone.isEnabled = !isMonitoring
+        buttonSelect1.isEnabled       = !isMonitoring
+        buttonSelect2.isEnabled       = !isMonitoring
+        buttonSelect3.isEnabled       = !isMonitoring
+        buttonSendInterval.isEnabled  = !isMonitoring
+        buttonSaveSettings.isEnabled  = !isMonitoring
+        buttonTestSend.isEnabled      = !isMonitoring
     }
 }
