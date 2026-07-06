@@ -37,6 +37,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var textViewBattery: TextView
     private lateinit var textViewBackground: TextView
     private lateinit var textViewAlarm: TextView
+    private lateinit var textViewMonitoringStatus: TextView
     // [screenOnTimeout UI: 復活時はコメント解除]
     //   private lateinit var buttonScreenOnTimeout: Button
     //   private lateinit var textViewScreenOnTimeout: TextView
@@ -104,6 +105,7 @@ class MainActivity : AppCompatActivity() {
         // buttonScreenOnTimeout = findViewById(R.id.buttonScreenOnTimeout)
         // textViewScreenOnTimeout = findViewById(R.id.textViewScreenOnTimeout)
         textViewAccessibility = findViewById(R.id.textViewAccessibility)
+        textViewMonitoringStatus = findViewById(R.id.textViewMonitoringStatus)
 
         textViewAccessibility.setOnClickListener {
             if (!isAccessibilityServiceEnabled()) checkAndRequestAccessibilityService()
@@ -548,5 +550,6 @@ class MainActivity : AppCompatActivity() {
         buttonSendInterval.isEnabled  = !isMonitoring
         buttonSaveSettings.isEnabled  = !isMonitoring
         buttonTestSend.isEnabled      = !isMonitoring
-    }
+        textViewMonitoringStatus.text = if (isMonitoring) "監視中" else "停止中\n(設定変更可能)"
+      }
 }

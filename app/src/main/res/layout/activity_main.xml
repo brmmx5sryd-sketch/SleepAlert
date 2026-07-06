@@ -114,41 +114,8 @@
                 android:gravity="center" />
         </LinearLayout>
 
-        <!-- 画面ONタイムアウト -->
         <!-- [screenOnTimeout UI: 復活時はコメント解除]
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:layout_marginTop="8dp">
-
-            <Button
-                android:id="@+id/buttonScreenOnTimeout"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="画面ON判定時間" />
-
-            <TextView
-                android:id="@+id/textViewScreenOnTimeout"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:layout_gravity="center_vertical"
-                android:text="3分"
-                android:textSize="14sp"
-                android:gravity="center" />
-        </LinearLayout>
-
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="設定時間未満の画面点灯は操作したと判断しません"
-            android:textSize="12sp"
-            android:layout_marginTop="2dp"
-            android:layout_marginBottom="8dp" />
-
-        -->
+        <LinearLayout ... /> -->
 
         <!-- 設定保存 -->
         <Button
@@ -166,30 +133,48 @@
             android:minHeight="48dp"
             android:text="テスト送信" />
 
-        <!-- 監視開始・停止（横並び） -->
+        <!-- 監視開始・停止（ボタン縦並び＋右側にステータス表示） -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
             android:layout_marginTop="8dp">
 
-            <Button
-                android:id="@+id/buttonStart"
+            <!-- 左：ボタン縦並び -->
+            <LinearLayout
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:minHeight="48dp"
-                android:layout_marginEnd="4dp"
-                android:text="監視開始" />
+                android:orientation="vertical">
 
-            <Button
-                android:id="@+id/buttonStop"
+                <Button
+                    android:id="@+id/buttonStart"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:minHeight="48dp"
+                    android:layout_marginBottom="4dp"
+                    android:text="監視開始" />
+
+                <Button
+                    android:id="@+id/buttonStop"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:minHeight="48dp"
+                    android:text="監視停止" />
+
+            </LinearLayout>
+
+            <!-- 右：ステータステキスト -->
+            <TextView
+                android:id="@+id/textViewMonitoringStatus"
                 android:layout_width="0dp"
-                android:layout_height="wrap_content"
+                android:layout_height="match_parent"
                 android:layout_weight="1"
-                android:minHeight="48dp"
-                android:layout_marginStart="4dp"
-                android:text="監視停止" />
+                android:gravity="center"
+                android:text="停止中です&#10;(設定変更できます)"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:textColor="@android:color/holo_blue_dark" />
 
         </LinearLayout>
 
